@@ -1,0 +1,113 @@
+## DEFAULT GENERAL SETTINGS ##
+#
+# /home/giacomo/.brutefir_defaults
+
+#################################################################
+##                         DOCUMENTATION                       ##
+
+# https://torger.se/anders/brutefir.html#config                 #
+
+#################################################################
+
+##################################################################
+#
+## sudo modprobe snd-aloop
+#
+##################################################################
+
+
+float_bits: 64;             # internal floating point precision
+sampling_rate: 48000;       # sampling rate in Hz of audio interfaces
+filter_length: 4096,16;       # length of filtersfilter_length: 4096,16;       # length of filters
+
+#
+## ---------------------------------------------------------------------
+##                    CONFIGURATION FILE LOCATION
+config_file: "~/digital-room-correction/brutefir.conf"; # standard location of main config file
+##                                   
+## ---------------------------------------------------------------------
+#
+overflow_warnings: true;    # echo warnings to stderr if overflow occurs
+show_progress: true;        # echo filtering progress to stderr
+max_dither_table_size: 0;   # maximum size in bytes of precalculated dither
+allow_poll_mode: false;     # allow use of input poll mode
+modules_path: ".";          # extra path where to find BruteFIR modules
+monitor_rate: false;        # monitor sample rate
+powersave: false;           # pause filtering when input is zero
+lock_memory: true;          # try to lock memory if realtime prio is set
+sdf_length: -1;             # subsample filter half length in samples
+safety_limit: 20;           # if non-zero max dB in output before aborting
+convolver_config: "~/digital-room-correction/brutefir_convolver"; # location of convolver config file
+
+## COEFF DEFAULTS ##
+
+coeff {
+	format: "TEXT";     # file format
+	attenuation: 0.0;   # attenuation in dB
+	blocks: -1;         # how long in blocks
+	skip: 0;            # how many bytes to skip
+	shared_mem: false;  # allocate in shared memory
+};
+
+## INPUT DEFAULTS ##
+
+input {
+	device: "alsa" { device: "hw:1,1"; ignore_xrun: true; };
+	sample: "S32_LE";   # sample format
+	channels: 2/0,1;    # number of open channels / which to use
+	delay: 0,0;         # delay in samples for each channel
+	maxdelay: -1;       # max delay for variable delays
+	subdelay: 0,0;      # subsample delay in 1/100th sample for each channel
+	mute: false,false;  # mute active on startup for each channel
+};
+
+## OUTPUT DEFAULTS ##
+
+output {
+	
+	# $> cat /proc/asound/card0/pcm0p/sub0/hw_params
+	#
+	# access: RW_INTERLEAVED
+	# format: S16_LE
+	# subformat: STD
+	# channels: 2
+	# rate: 44100 (44100/1)
+	# period_size: 44100
+	# buffer_size: 88200
+	#  
+	#
+	#
+
+# BRYSTON BDA-2
+	sample: "S32_LE";
+	device: "alsa" { device: "hw:3"; ignore_xrun: true; };
+	channels: 2/0,1;    # number of open channels / which to use
+	delay: 0,0;         # delay in samples for each channel
+	maxdelay: -1;       # max delay for variable delays
+	subdelay: 0,0;      # subsample delay in 1/100th sample for each channel
+	mute: false,false;  # mute active on startup for each channel
+	
+#######            DITHERING                                              ######
+# If the dither flag is set to true, dither is applied on all used channels. 
+# Dither is a method to add carefully devised noise to improve the resolution.
+# Although most modern recordings contain dither, they need to be re-dithered 
+# after they have been filtered for best resolution. Dither should be applied 
+# when the resolution is reduced, for example from 24 bits on the input to 16 
+# bits on the output. However, one can claim that dither should always be 
+# applied, since the internal resolution is always higher than the output. When
+# BruteFIR is compiled with single precision, it is not possible to apply dither
+# to 24 bit output, since the internal resolution is not high enough. 
+# BruteFIR's dither algorithm is the highly efficient HP TPDF dither algorithm
+# (High Pass Triangular Probability Distribution Function)
+	
+	
+	dither: false;      # apply dither
+};
+
+## FILTER DEFAULTS ##
+
+filter {
+	process: -1;        # process index to run in (-1 means auto)
+	delay: 0;           # predelay, in blocks
+	crossfade: false;   # crossfade when coefficient is changed
+};
