@@ -1,3 +1,7 @@
+![Amplitude: current filter vs uncorrected](doc/current.amplitude.png)
+
+![Phase: current filter vs uncorrected](doc/current.phase.png)
+
 # Description
 
 Configuration files, scripts, filters (raw format), ... for brutefir under Linux. 
@@ -14,13 +18,28 @@ The parameter *off* is reserved and used by *scripts/drc.sh* to stop the brutefi
 #  The old.pos/ directory
 Configuration files referring to older speaker / listening positions shall be moved here to avoid cluttering the main directory
 
-# The scripts/ directory
+# The drc.sh script
 
-Contains the *drc.sh* bash script, that starts the *brutefir* convolution engine.
-Accepts one parameter, e.g. *eq1*. Calls *brutefir brutefir-eq1.conf*.
+The *drc.sh* bash script shall be located in the main folder. It starts the *brutefir* convolution engine.
+Accepts one parameter, e.g. *current*. Calls *brutefir brutefir-current.conf* (the current configuration)
 If the parameter equals *off*, brutefir is stopped.
 
-Additionally, the scripts calls *mpc* (MPD control application) so that the audio device in *MPD* is switched to the *loopback* device targeted by brutefir or to the native device (if the parameter is *off*)
+Additionally, the script calls *mpc* (MPD control application) so that the audio device in *MPD* is switched to the *loopback* device targeted by brutefir or to the native device (if the parameter is *off*)
+
+# The filters/ directory
+
+Contains the filters, each under a directory named after the speaker distance from the front wall. For example, a dir named *120* shall contain filters
+designed for speaker placement at 120cm from the front wall. Further documentation shall define other distances, such as the listening position.
+
+To simplify and minimize editing the brutefir configuration file, two symbolic links:
+- LF.raw  (Left Filter)
+- RF.raw  (Right Filter)
+shall point to the *.raw* filter in use for the *current* configuration.
+
+# The doc/ directory
+It shall contain at least two plots (PNG format), each one with two curves: uncorrected and corrected:
+- current.amplitude.png: amplitude
+- current.phase.png: phase 
 
 # The etc/systemd directory
 
