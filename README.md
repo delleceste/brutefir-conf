@@ -1,3 +1,20 @@
+# Current configuration 
+
+### Geometry 
+
+- 120cm from front wall
+- listener at P1 (306cm from loudspeakers)
+
+### Filters
+
+- 801 crossover made with all pass filters
+- correction at 47.9Hz with all pass filters
+- EQ version milder than the REW generated in the lowest region
+
+### files:
+
+- DRC120/120.2024.11.21-all-pass-xover+eq1.mdat
+
 ![Amplitude: current filter vs uncorrected](doc/current.amplitude.png)
 
 ![Phase: current filter vs uncorrected](doc/current.phase.png)
