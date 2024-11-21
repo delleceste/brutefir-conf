@@ -3,7 +3,7 @@
 ### Geometry 
 
 - 120cm from front wall
-- listener at P1 (306cm from loudspeakers)
+- sofa at P6 (mic at 306cm from loudspeakers 390 from front wall)
 
 ### Filters
 
