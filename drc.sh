@@ -5,8 +5,9 @@ if [[ -z "$1" ]]; then
   exit 1
 fi
 
-drc_root="/home/giacomo/digital-room-correction"
-conf_file="$drc_root/brutefir-$1.conf"
+drc_root="/home/giacomo/DRC"
+brutefir_conf_dir="brutefir-conf"
+conf_file="$drc_root/$brutefir_conf_dir/brutefir-$1.conf"
 
 process_name="brutefir"
 
