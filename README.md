@@ -37,6 +37,28 @@ The parameter *off* is reserved and used by *scripts/drc.sh* to stop the brutefi
 - *brutefir-last.1.conf*, second last configuration (for comparison purposes, optional)
 - *brutefir-last.2.conf*, third last configuration (for comparison purposes, optional)
 
+### Additional config files for flavors different than default
+
+Other brutefir-XY.conf can be optionally added (to offer flavors of different corrections / equalizations).
+
+#### Note:
+
+Filters used in additional brutefir-XY.conf shall reside within specific subfolders, possibly self describing, and shall not clutter the *filters/* top level directory
+
+# The filters/ directory and the symlinks to the current default filter
+
+Contains the filters, each under a directory named after the speaker distance from the front wall. For example, a dir named *120* shall contain filters
+designed for speaker placement at 120cm from the front wall. Further documentation shall define other distances, such as the listening position.
+
+## Symlinks to the default filter currently in use
+
+To simplify and minimize editing the brutefir configuration file, two symbolic links:
+
+- LF.raw  (Left Filter)
+- RF.raw  (Right Filter)
+
+shall point to the *.raw* filter in use for the *current* configuration.
+
 #  The old.pos/ directory
 Configuration files referring to older speaker / listening positions shall be moved here to avoid cluttering the main directory
 
@@ -47,16 +69,6 @@ Accepts one parameter, e.g. *current*. Calls *brutefir brutefir-current.conf* (t
 If the parameter equals *off*, brutefir is stopped.
 
 Additionally, the script calls *mpc* (MPD control application) so that the audio device in *MPD* is switched to the *loopback* device targeted by brutefir or to the native device (if the parameter is *off*)
-
-# The filters/ directory
-
-Contains the filters, each under a directory named after the speaker distance from the front wall. For example, a dir named *120* shall contain filters
-designed for speaker placement at 120cm from the front wall. Further documentation shall define other distances, such as the listening position.
-
-To simplify and minimize editing the brutefir configuration file, two symbolic links:
-- LF.raw  (Left Filter)
-- RF.raw  (Right Filter)
-shall point to the *.raw* filter in use for the *current* configuration.
 
 # The doc/ directory
 It shall contain at least two plots (PNG format), each one with two curves: uncorrected and corrected:
