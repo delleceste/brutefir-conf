@@ -33,7 +33,7 @@ XY identifies the *name* of the filter/configuration, and it is passed to the *s
 The parameter *off* is reserved and used by *scripts/drc.sh* to stop the brutefir process.
 
 ## Examples
-- *brutefir-current.conf*, launched with *drc.sh current*, script pointing to the current (latest) configuration
+- *brutefir-current.conf*, launched with *drc.sh current*, script pointing to the current (latest) *default* configuration
 - *brutefir-last.1.conf*, second last configuration (for comparison purposes, optional)
 - *brutefir-last.2.conf*, third last configuration (for comparison purposes, optional)
 
