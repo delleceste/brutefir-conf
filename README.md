@@ -32,6 +32,11 @@ Each one *shall load only one brutefir filter*
 XY identifies the *name* of the filter/configuration, and it is passed to the *scripts/drc.sh* script as parameter so that brutefir is launched with *brutefir-XY.conf* configuration file.
 The parameter *off* is reserved and used by *scripts/drc.sh* to stop the brutefir process.
 
+## Examples
+- *brutefir-current.conf*, launched with *drc.sh current*, script pointing to the current (latest) configuration
+- *brutefir-last.1.conf*, second last configuration (for comparison purposes, optional)
+- *brutefir-last.2.conf*, third last configuration (for comparison purposes, optional)
+
 #  The old.pos/ directory
 Configuration files referring to older speaker / listening positions shall be moved here to avoid cluttering the main directory
 
