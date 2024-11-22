@@ -7,17 +7,27 @@
 
 ### Filters
 
-- 801 crossover made with all pass filters
-- correction at 47.9Hz with all pass filters
-- EQ version milder than the REW generated in the lowest region
+- 801 crossover made with filters linearization (RePhase)
+- no additional correction with RePhase
+- EQ focused at taming the bumps [60-160] and [300-700]: starting from REW match, removed attenuation at 50Hz (R) not to affect the lowest region. Manually increased attenuation around 100-120.
+
+### Notes
+
+These filters do not address the dip(s) in [40-50] 
 
 ### files:
 
-- DRC120/120.2024.11.21-all-pass-xover+eq1.mdat
+- DRC120/2024.11.22-xover+EQ.only.mdat
 
 ![Amplitude: current filter vs uncorrected](doc/current.amplitude.png)
 
 ![Phase: current filter vs uncorrected](doc/current.phase.png)
+
+![ETC: current impulse response vs uncorrected](doc/current.impulse.png)
+
+![ETC: current filter vs uncorrected](doc/current.etc.png)
+
+![Clarity [C80]: current filter vs uncorrected](doc/current.clarity.c80.png)
 
 # Description
 
