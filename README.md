@@ -9,15 +9,13 @@
 
 - 801 crossover made with filters linearization (RePhase)
 - no additional correction with RePhase
-- EQ focused at taming the bumps [60-160] and [300-700]: starting from REW match, removed attenuation at 50Hz (R) not to affect the lowest region. Manually increased attenuation around 100-120.
+- Virtual bass array filters with delayed impulse and +3dB low shelf filter EQ
+- corrective EQ until 220Hz
 
-### Notes
-
-These filters do not address the dip(s) in [40-50] 
 
 ### files:
 
-- DRC120/2024.11.22-xover+EQ.only.mdat
+- DRC120/2024.11.25-FVBA-LS3dB.mdat
 
 ![Amplitude: current filter vs uncorrected](doc/current.amplitude.png)
 
