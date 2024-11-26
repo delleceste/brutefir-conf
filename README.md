@@ -94,5 +94,5 @@ Contains systemd scripts to execute *scripts/drc.sh* at boot with the last loade
 
 # History and notes
 
-![VBA filter with ALL-PASS phase filter comparison](doc/current.clarity.c80.png)
+![VBA filter with ALL-PASS phase filter comparison](doc/FVBA.vs.ALLPASS.md)
 
