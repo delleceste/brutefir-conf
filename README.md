@@ -7,11 +7,10 @@
 
 ### Filters
 
-- 801 crossover made with filters linearization (RePhase)
-- no additional correction with RePhase
-- Virtual bass array filters with delayed impulse and +3dB low shelf filter EQ
+- crossover filters linearization (RePhase)
+- no additional phase correction
+- Virtual bass array filters with delayed impulse (1st mode: 55.15, second 110.3) and +3dB low shelf filter EQ
 - corrective EQ until 220Hz
-
 
 ### files:
 
