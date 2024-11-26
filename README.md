@@ -91,3 +91,8 @@ It shall contain at least two plots (PNG format), each one with two curves: unco
 # The etc/systemd directory
 
 Contains systemd scripts to execute *scripts/drc.sh* at boot with the last loaded configuration.
+
+# History and notes
+
+![VBA filter with ALL-PASS phase filter comparison](doc/current.clarity.c80.png)
+
