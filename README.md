@@ -7,14 +7,20 @@
 
 ### Filters
 
+#### 2024.11.25
+
 - crossover filters linearization (RePhase)
 - no additional phase correction
 - Virtual bass array filters with delayed impulse (1st mode: 55.15, second 110.3) and +3dB low shelf filter EQ
 - corrective EQ until 220Hz
 
+#### 2024.11.26
+
+- corrective EQ from 221 to 693Hz (no motivation for 693, it happened, idea was to set upper limit to 700Hz) after windowing L and R to 10ms (343/3.06, being 3.06 approx speaker distance from listening position)
+
 ### files:
 
-- DRC120/2024.11.25-FVBA-LS3dB.mdat
+- 120cm.VBALS3dB+MF.correction.mdat
 
 ![Amplitude: current filter vs uncorrected](doc/current.amplitude.png)
 
