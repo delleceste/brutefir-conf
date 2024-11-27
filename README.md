@@ -1,22 +1,34 @@
 # Current configuration 
 
-### Geometry 
+## Geometry 
 
 - 120cm from front wall
 - sofa at P6 (mic at 306cm from loudspeakers 390 from front wall)
 
-### Filters
+## Filters
 
-#### 2024.11.25
+### v. 1.1.1 2024.11.27
+
+- Low shelf filter has now a slope of -12dB/octave. 1.1.0 version had a (mistakenly?) -6dB/octave slope. The result leads to an improved clarity in the lowest region (< 80Hz).
+- Low shelf filter cutoff at 44.50 Hz  Shape Butterworth  Slope 12 dB/oct
+- Mid band EQ now has an effect compared to 1.1.0. 10ms windowing applied before EQ-ing. The bump between 300 and 700 is now tamed.
+
+### v. 1.1.0  2024.11.25 and 2024.11.26
+
+#### Files
+
+1. 120cm.VBALS3dB+MF.correction.mdat
+2. 2024.11.25-FVBA-LS3dB.mdat
+
+##### Features
 
 - crossover filters linearization (RePhase)
 - no additional phase correction
 - Virtual bass array filters with delayed impulse (1st mode: 55.15, second 110.3) and +3dB low shelf filter EQ
 - corrective EQ until 220Hz
-
-#### 2024.11.26
-
 - corrective EQ from 221 to 693Hz (no motivation for 693, it happened, idea was to set upper limit to 700Hz) after windowing L and R to 10ms (343/3.06, being 3.06 approx speaker distance from listening position)
+
+
 
 ### files:
 
