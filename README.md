@@ -1,4 +1,29 @@
-# Current configuration 
+# Current configuration (2025.09.23)
+
+## Geometry
+
+- 120cm from front wall
+- sofa at blue marks (see notebook for details)
+
+## Filters
+
+v.1.5.0 with two flavours
+
+1. with max +2dB boost, peak correction with inversion, crossover correction (DRC-120.blue/120-blue-with-inversion+2dB.mdat)
+
+2. with no boost, peak correction with inversion, crossover correction (DRC-120.blue/120-blue-with-inversion.mdat)
+
+Revised crossover files (used in rephase): DRC-120.blue/ LR-EP-psy.txt , LR-EP-unsmoothed.txt, X801.rephase, X801.wav
+
+
+### configuration
+
+LF.0.raw -> 120.blue/FLX+0dB-192k.raw
+RF.0.raw -> 120.blue/FRX+0dB-192k.raw
+LF.1.raw -> 120.blue/FLX+2dB-192k.raw
+RF.1.raw -> 120.blue/FRX+2dB-192k.raw
+
+
 
 ## Geometry 
 
