@@ -5,7 +5,11 @@ After=default.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/bash -c 'ARG="$(cat /home/giacomo/DRC/brutefir-conf/last_arg 2>/dev/null || echo off)"; /home/giacomo/DRC/brutefir-conf/drc.sh "$ARG"'
+
+ExecStart=/bin/bash -c '\
+  ARG="$(cat /home/giacomo/DRC/brutefir-conf/last_arg 2>/dev/null || echo off)"; \
+  echo "[DRC] Restoring last_arg=$ARG"; \
+  exec /home/giacomo/DRC/brutefir-conf/drc.sh "$ARG"'
 
 [Install]
 WantedBy=default.target
