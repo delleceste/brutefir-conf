@@ -16,6 +16,12 @@ if [[ "$1" != "off" ]] && [ ! -e "$conf_file" ]; then
   exit 1
 fi
 
+
+# inside /home/giacomo/DRC/brutefir-conf/drc.sh, soon after parameter validation:
+STATE_FILE="$drc_root/$brutefir_conf_dir/last_arg"
+echo "$1" > "$STATE_FILE"
+chmod 644 "$STATE_FILE" 2>/dev/null || true
+
 if pgrep "$process_name" > /dev/null
 then
   echo "stopping brutefir"
