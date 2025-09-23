@@ -1,0 +1,11 @@
+[Unit]
+Description=DRC restore/save (user service)
+After=default.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'ARG="$(cat /home/giacomo/DRC/brutefir-conf/last_arg 2>/dev/null || echo off)"; /home/giacomo/DRC/brutefir-conf/drc.sh "$ARG"'
+
+[Install]
+WantedBy=default.target
