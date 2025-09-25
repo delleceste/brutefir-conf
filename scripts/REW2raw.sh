@@ -30,10 +30,12 @@ for input in "$@"; do
     # Build output file name: replace '48k' with '192k' if present
     base=$(basename "$input" .wav)
     base_out=${base//48k/192k}
-    out="${base_out}_sox_upsampled_64b_float.raw"
+    out="${base_out}_sox_upsampled_float64.raw"
 
     # Convert: upsample to 192 kHz, 64-bit float raw
-    sox "$input" -r 192000 -b 64 -e float -t raw "$out"
+    #sox "$input" -r 192000 -b 64 -e float -t raw "$out"
+	
+    sox -V3 "$input" -r 192000 -b 64 -e float -t raw "$out" rate -v 192000 
 
     if [ $? -eq 0 ]; then
         echo -e "Converted $input → '\e[0;32;4m$out\e[0m'"
