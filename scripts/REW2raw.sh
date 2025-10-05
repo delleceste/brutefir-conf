@@ -147,6 +147,10 @@ fi
 echo "${BOLD}Resampled peak (before gain):${RESET} ${YELLOW}${resamp_peak}${RESET}"
 echo
 
+echo "original peak was $orig_peak: now setting it to the 192kHz peak 0.127396"
+
+orig_peak=0.127396
+
 # avoid division by zero and zero original
 if awk "BEGIN{exit !($resamp_peak > 0 && $orig_peak > 0)}"; then
   gain_db=$(awk -v o="$orig_peak" -v r="$resamp_peak" 'BEGIN{
