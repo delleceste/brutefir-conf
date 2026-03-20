@@ -3,6 +3,7 @@ Description=Setup DRC audio routing when USB DAC is connected
 After=sound.target
 Wants=brutefir-drc.service
 After=brutefir-drc.service
+PropagatesStopTo=brutefir-drc.service
 
 [Service]
 Type=oneshot
