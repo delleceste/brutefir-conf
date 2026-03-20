@@ -6,6 +6,7 @@ After=brutefir-drc.service
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 User=giacomo
 Environment=HOME=/home/giacomo
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
