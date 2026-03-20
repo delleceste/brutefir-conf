@@ -13,3 +13,4 @@ Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=XDG_RUNTIME_DIR=/run/user/1001
 ExecStartPre=/bin/sleep 1
 ExecStart=/bin/bash -c 'mpc enable only 3; mpc --port 6601 enable only 3'
+ExecStop=/bin/bash -c 'mpc enable only 1; mpc --port 6601 enable only 1'
