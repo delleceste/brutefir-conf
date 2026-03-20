@@ -248,10 +248,20 @@ make install-udev     # copy udev rule and reload udev only
 
 ## Manual control
 
+The two units are linked: stopping `drc-usb-audio.service` also stops `brutefir-drc.service`
+(via `PartOf=`) and switches MPD back to the direct output (via `ExecStop`). This is the
+recommended way to stop everything cleanly.
+
 ```bash
-# Start/stop brutefir manually
-sudo systemctl start brutefir-drc.service
+# Stop DRC completely (stops brutefir + switches MPD back to output 1)
+sudo systemctl stop drc-usb-audio.service
+
+# Start DRC manually (starts brutefir + switches MPD to output 3)
+sudo systemctl start drc-usb-audio.service
+
+# Stop/start brutefir alone (MPD output is not changed)
 sudo systemctl stop  brutefir-drc.service
+sudo systemctl start brutefir-drc.service
 
 # Check status
 systemctl status brutefir-drc.service
