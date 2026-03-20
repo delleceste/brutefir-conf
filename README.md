@@ -181,9 +181,91 @@ It shall contain at least two plots (PNG format), each one with two curves: unco
 - current.amplitude.png: amplitude
 - current.phase.png: phase 
 
-# The etc/systemd directory
+# USB DAC hotplug automation
 
-Contains systemd scripts to execute *scripts/drc.sh* at boot with the last loaded configuration.
+Plugging in the USB DAC automatically starts brutefir and switches MPD to the DRC output.
+This is implemented with a udev rule and two systemd system services.
+
+## Event chain
+
+```
+USB DAC plugged in
+  └─ udev detects SUBSYSTEM=="sound", KERNEL=="controlC*", SUBSYSTEMS=="usb"
+       └─ 99-usb-audio-drc.rules sets SYSTEMD_WANTS="drc-usb-audio.service"
+            └─ systemd starts drc-usb-audio.service
+                 ├─ Wants=brutefir-drc.service  →  brutefir starts (own cgroup)
+                 └─ ExecStart: mpc switches MPD output to DAC+DRC (output 3)
+```
+
+## Files
+
+| File | Installed to | Purpose |
+|---|---|---|
+| `99-usb-audio-drc.rules` | `/etc/udev/rules.d/` | udev rule: triggers the service on DAC plug-in |
+| `etc/systemd/system/brutefir-drc.service` | `/etc/systemd/system/` | Manages the brutefir process |
+| `etc/systemd/system/drc-usb-audio.service` | `/etc/systemd/system/` | Switches MPD output; declares dependency on brutefir-drc |
+
+## The udev rule (`99-usb-audio-drc.rules`)
+
+```
+ACTION=="add", SUBSYSTEM=="sound", KERNEL=="controlC*", SUBSYSTEMS=="usb",
+    TAG+="systemd", ENV{SYSTEMD_WANTS}="drc-usb-audio.service"
+```
+
+- Matches any USB sound card control device (`controlC*`), regardless of DAC model.
+- `TAG+="systemd"` hands the event to systemd.
+- `SYSTEMD_WANTS` tells systemd to start `drc-usb-audio.service` if it is not already active.
+
+## Why two service units
+
+A single `Type=oneshot` service that launches brutefir and exits would have brutefir killed
+by systemd when the service's cgroup is cleaned up. `KillMode=none` avoids that but is
+deprecated. The correct solution is to run brutefir in its **own** service unit with its own
+cgroup, so systemd tracks and manages it independently.
+
+**`brutefir-drc.service`** — `Type=simple`, runs brutefir in the foreground (no `-daemon`
+flag). systemd owns its full lifecycle: start, stop, and restart. The process stays alive
+as long as this unit is active.
+
+**`drc-usb-audio.service`** — `Type=oneshot`, triggered by udev. Declares
+`Wants=brutefir-drc.service` so systemd starts brutefir-drc automatically, then waits 1 s
+for brutefir to initialise (`ExecStartPre=/bin/sleep 1`) before switching MPD outputs.
+
+## Installation
+
+Use the Makefile at the root of the repository:
+
+```bash
+make install          # copy all files and reload udev + systemd
+make install-systemd  # copy service files and reload systemd only
+make install-udev     # copy udev rule and reload udev only
+```
+
+`make install` requires sudo (prompted once per target that needs it).
+
+## Manual control
+
+```bash
+# Start/stop brutefir manually
+sudo systemctl start brutefir-drc.service
+sudo systemctl stop  brutefir-drc.service
+
+# Check status
+systemctl status brutefir-drc.service
+systemctl status drc-usb-audio.service
+
+# Follow logs
+journalctl -fu brutefir-drc.service
+journalctl -fu drc-usb-audio.service
+```
+
+`drc.sh` continues to work for manual invocation outside of systemd (it starts brutefir
+with `-daemon` directly and switches MPD outputs in one step).
+
+## User ID note
+
+`drc-usb-audio.service` sets `XDG_RUNTIME_DIR=/run/user/1001` (giacomo's UID).
+If the UID changes, update that value in the service file and re-run `make install-systemd`.
 
 # History and notes
 

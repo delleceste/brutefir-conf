@@ -1,6 +1,8 @@
 [Unit]
-Description=Start DRC (brutefir) when USB audio DAC is connected
+Description=Setup DRC audio routing when USB DAC is connected
 After=sound.target
+Wants=brutefir-drc.service
+After=brutefir-drc.service
 
 [Service]
 Type=oneshot
@@ -8,5 +10,5 @@ User=giacomo
 Environment=HOME=/home/giacomo
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=XDG_RUNTIME_DIR=/run/user/1001
-KillMode=none
-ExecStart=/home/giacomo/DRC/brutefir-conf/drc.sh 120.blue+0dB
+ExecStartPre=/bin/sleep 1
+ExecStart=/bin/bash -c 'mpc enable only 3; mpc --port 6601 enable only 3'

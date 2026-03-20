@@ -1,0 +1,11 @@
+[Unit]
+Description=BruteFIR DRC convolution engine
+After=sound.target
+
+[Service]
+Type=simple
+User=giacomo
+Environment=HOME=/home/giacomo
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=brutefir /home/giacomo/DRC/brutefir-conf/brutefir-120.blue+0dB.conf
+Restart=no
