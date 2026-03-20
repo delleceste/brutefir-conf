@@ -112,6 +112,62 @@ shall point to the *.raw* filter in use for the *current* configuration.
 #  The old.pos/ directory
 Configuration files referring to older speaker / listening positions shall be moved here to avoid cluttering the main directory
 
+# scripts/headroom_calc.py
+
+Calculates the minimum `attenuation:` value to set in each brutefir `.conf` file for a given set of filter files, in order to prevent clipping while maximising dynamics.
+
+## How it works
+
+brutefir processes audio entirely in float64 (effectively infinite dynamic range).
+The risk of clipping arises only at the output boundary when the filter has gain > 0 dB at some frequency.
+
+For each filter file the script:
+1. Reads the raw impulse response samples (supports `FLOAT64_LE` / `S32_LE` formats)
+2. Computes the FFT — each bin gives the filter's complex gain at that frequency
+3. Takes `max |FFT(h)|` — the worst-case gain across all frequencies
+4. Converts to dB: `headroom = 20 × log10(peak_gain)`
+5. Adds a configurable safety margin (default 1 dB) and rounds up to one decimal place
+
+Because brutefir applies **one `attenuation:` value per coeff block to both channels**, the script groups filters into L/R pairs and uses the channel with the higher peak gain to determine the pair's attenuation.
+
+Note: minimising attenuation does **not** improve audio quality. In float64 attenuation is lossless; the only goal is to avoid clipping.
+
+## Usage
+
+```bash
+python3 scripts/headroom_calc.py
+```
+
+Edit the `FILTER_PAIRS` list at the top of the script to add or change filter files and their formats.
+Edit `SAFETY_MARGIN_DB` to adjust the margin (default: 1.0 dB).
+
+## Results for filters/120.blue
+
+Output of `headroom_calc.py` as of v1.5.0:
+
+```
+Pair                 Channel file                                      Peak gain Limiting ch  Suggested
+──────────────────── ────────────────────────────────────────────────       (dB)            atten (dB)
++0dB float64         FLX+0dB-192k_sox_upsample_float64.raw                +1.071   ← limits        2.1
+                     FRX+0dB-192k_sox_upsample_float64.raw                -0.038
+
++2dB float64         FLX+2dB-192k_sox_upsample_float64.raw                +3.060   ← limits        4.1
+                     FRX+2dB-192k_sox_upsample_float64.raw                +1.954
+
++2dB trimmed S32     FLX+2dB-trimmed-192k.raw                             +3.191   ← limits        4.2
+                     FRX+2dB-trimmed-192k.raw                             +2.137
+
+Safety margin applied: 1.0 dB
+```
+
+The left channel limits in all pairs. Set `attenuation:` in the `.conf` file as follows:
+
+| Filter pair | `attenuation:` (both channels) |
+|---|---|
+| `+0dB` float64 | **2.1** |
+| `+2dB` float64 | **4.1** |
+| `+2dB` trimmed S32 | **4.2** |
+
 # The drc.sh script
 
 The *drc.sh* bash script shall be located in the main folder. It starts the *brutefir* convolution engine.
