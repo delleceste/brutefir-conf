@@ -1,0 +1,11 @@
+[Unit]
+Description=Start DRC (brutefir) when USB audio DAC is connected
+After=sound.target
+
+[Service]
+Type=oneshot
+User=giacomo
+Environment=HOME=/home/giacomo
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=XDG_RUNTIME_DIR=/run/user/1001
+ExecStart=/home/giacomo/DRC/brutefir-conf/drc.sh 120.blue+0dB
