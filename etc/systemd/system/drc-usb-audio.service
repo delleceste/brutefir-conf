@@ -8,4 +8,5 @@ User=giacomo
 Environment=HOME=/home/giacomo
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=XDG_RUNTIME_DIR=/run/user/1001
+KillMode=none
 ExecStart=/home/giacomo/DRC/brutefir-conf/drc.sh 120.blue+0dB
