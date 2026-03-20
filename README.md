@@ -227,9 +227,12 @@ cgroup, so systemd tracks and manages it independently.
 flag). systemd owns its full lifecycle: start, stop, and restart. The process stays alive
 as long as this unit is active.
 
-**`drc-usb-audio.service`** — `Type=oneshot`, triggered by udev. Declares
-`Wants=brutefir-drc.service` so systemd starts brutefir-drc automatically, then waits 1 s
-for brutefir to initialise (`ExecStartPre=/bin/sleep 1`) before switching MPD outputs.
+**`drc-usb-audio.service`** — `Type=oneshot` with `RemainAfterExit=yes`, triggered by udev.
+Declares `Wants=brutefir-drc.service` so systemd starts brutefir-drc automatically, then
+waits 1 s for brutefir to initialise (`ExecStartPre=/bin/sleep 1`) before switching MPD
+outputs. `RemainAfterExit=yes` keeps the service "active" after ExecStart completes, so
+repeated udev events (one USB device generates several `controlC*` events) are ignored and
+do not launch additional brutefir instances.
 
 ## Installation
 
