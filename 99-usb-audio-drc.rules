@@ -1,0 +1,6 @@
+# Trigger drc.sh when any USB audio DAC is plugged in or switched on.
+# Matches any USB sound card control device, regardless of DAC model.
+# Install to: /etc/udev/rules.d/99-usb-audio-drc.rules
+
+ACTION=="add", SUBSYSTEM=="sound", KERNEL=="controlC*", SUBSYSTEMS=="usb", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}="drc-usb-audio.service"
