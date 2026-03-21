@@ -190,12 +190,22 @@ This is implemented with a udev rule and two systemd system services.
 
 ```
 USB DAC plugged in
-  └─ udev detects SUBSYSTEM=="sound", KERNEL=="controlC*", SUBSYSTEMS=="usb"
-       └─ 99-usb-audio-drc.rules sets SYSTEMD_WANTS="drc-usb-audio.service"
+  └─ udev: ACTION==add, SUBSYSTEM==sound, KERNEL==controlC*, SUBSYSTEMS==usb
+       └─ SYSTEMD_WANTS=drc-usb-audio.service  (no-op if already active)
             └─ systemd starts drc-usb-audio.service
                  ├─ Wants=brutefir-drc.service  →  brutefir starts (own cgroup)
                  └─ ExecStart: mpc switches MPD output to DAC+DRC (output 3)
+
+USB DAC unplugged
+  └─ udev: ACTION==remove, SUBSYSTEM==sound, KERNEL==controlC*, SUBSYSTEMS==usb
+       └─ RUN: systemctl stop drc-usb-audio.service
+            ├─ ExecStop: mpc switches MPD back to output 1
+            └─ PropagatesStopTo=brutefir-drc.service  →  brutefir stops
 ```
+
+`RemainAfterExit=yes` on `drc-usb-audio.service` prevents the multiple `controlC*` add
+events from a single plug-in from starting duplicate brutefir instances. The `remove` rule
+resets the service to inactive so the next plug-in works correctly.
 
 ## Files
 
