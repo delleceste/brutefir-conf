@@ -170,7 +170,7 @@ The left channel limits in all pairs. Set `attenuation:` in the `.conf` file as 
 
 # The drc.sh script
 
-The *drc.sh* bash script shall be located in the main folder. It starts the *brutefir* convolution engine.
+The *drc.sh* Bash script shall be located in the main folder. It starts the *brutefir* convolution engine and uses `/usr/bin/env bash` so it works with Bash in `/usr/bin` on Linux and `/usr/local/bin` on FreeBSD.
 Accepts one parameter, e.g. *current*. Calls *brutefir brutefir-current.conf* (the current configuration)
 If the parameter equals *off*, brutefir is stopped.
 
@@ -290,7 +290,56 @@ with `-daemon` directly and switches MPD outputs in one step).
 `drc-usb-audio.service` sets `XDG_RUNTIME_DIR=/run/user/1001` (giacomo's UID).
 If the UID changes, update that value in the service file and re-run `make install-systemd`.
 
+## FreeBSD rc.d scripts
+
+FreeBSD equivalents are provided under `etc/rc.d/FreeBSD/`, with an optional `devd`
+rule under `etc/devd/FreeBSD/`.
+
+| File | Installed to | Purpose |
+|---|---|---|
+| `etc/rc.d/FreeBSD/brutefir_drc` | `/usr/local/etc/rc.d/` | Manages the BruteFIR process |
+| `etc/rc.d/FreeBSD/drc_usb_audio` | `/usr/local/etc/rc.d/` | Starts/stops BruteFIR and switches MPD outputs |
+| `etc/devd/FreeBSD/usb-audio-drc.conf` | `/usr/local/etc/devd/` | Triggers routing on USB audio attach/detach |
+
+Install on FreeBSD with:
+
+```sh
+make install-freebsd
+```
+
+The `devd` rule calls `service ... onestart/onestop`, so no `rc.conf` enable flags
+are required for hotplug operation. Use `/etc/rc.conf` for local overrides; the
+defaults match the Linux service files:
+
+```sh
+brutefir_drc_user="giacomo"
+brutefir_drc_conf="/home/giacomo/DRC/brutefir-conf/brutefir-120.blue+0dB.conf"
+drc_usb_audio_start_output="3"
+drc_usb_audio_stop_output="1"
+drc_usb_audio_mpd_port="6600"
+```
+
+If you want either service to start at boot independently of USB hotplug, also set
+the corresponding enable flag:
+
+```sh
+brutefir_drc_enable="YES"
+drc_usb_audio_enable="YES"
+```
+
+Manual control:
+
+```sh
+service drc_usb_audio onestart  # start BruteFIR + switch MPD to output 3
+service drc_usb_audio onestop   # switch MPD to output 1 + stop BruteFIR
+service brutefir_drc onestart   # start BruteFIR only
+service brutefir_drc onestop    # stop BruteFIR only
+```
+
+The `devd` attach rule matches USB audio interface class `0x01`. The detach rule
+stops DRC on USB device removal; add DAC-specific `vendor`/`product` matches if the
+host has other USB devices whose removal should not stop DRC.
+
 # History and notes
 
 ![VBA filter with ALL-PASS phase filter comparison](doc/xtras/FVBA.vs.ALLPASS.md)
-

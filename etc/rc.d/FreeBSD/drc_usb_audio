@@ -1,0 +1,85 @@
+#!/bin/sh
+#
+# PROVIDE: drc_usb_audio
+# REQUIRE: brutefir_drc
+# KEYWORD: shutdown
+#
+# Add to /etc/rc.conf:
+# drc_usb_audio_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="drc_usb_audio"
+rcvar="drc_usb_audio_enable"
+start_cmd="drc_usb_audio_start"
+stop_cmd="drc_usb_audio_stop"
+status_cmd="drc_usb_audio_status"
+
+load_rc_config "$name"
+
+: ${drc_usb_audio_enable:="NO"}
+: ${drc_usb_audio_user:="giacomo"}
+: ${drc_usb_audio_home:="/home/giacomo"}
+: ${drc_usb_audio_path:="/usr/local/bin:/usr/bin:/bin"}
+: ${drc_usb_audio_mpc:="/usr/local/bin/mpc"}
+: ${drc_usb_audio_start_output:="3"}
+: ${drc_usb_audio_stop_output:="1"}
+: ${drc_usb_audio_mpd_port:="6600"}
+: ${drc_usb_audio_start_delay:="1"}
+: ${drc_usb_audio_state_file:="/var/run/drc_usb_audio.active"}
+: ${drc_usb_audio_brutefir_service:="brutefir_drc"}
+
+drc_usb_audio_mpc_enable_only()
+{
+	local port output
+
+	port="$1"
+	output="$2"
+
+	su -m "${drc_usb_audio_user}" -c "/usr/bin/env HOME=${drc_usb_audio_home} PATH=${drc_usb_audio_path} ${drc_usb_audio_mpc} --port ${port} enable only ${output}"
+}
+
+drc_usb_audio_route_to_drc()
+{
+	drc_usb_audio_mpc_enable_only "${drc_usb_audio_mpd_port}" "${drc_usb_audio_start_output}"
+}
+
+drc_usb_audio_route_to_direct()
+{
+	drc_usb_audio_mpc_enable_only "${drc_usb_audio_mpd_port}" "${drc_usb_audio_stop_output}"
+}
+
+drc_usb_audio_start()
+{
+	if [ -f "${drc_usb_audio_state_file}" ]; then
+		echo "${name} already active"
+		return 0
+	fi
+
+	service "${drc_usb_audio_brutefir_service}" onestart || return 1
+	sleep "${drc_usb_audio_start_delay}"
+	drc_usb_audio_route_to_drc || return 1
+	: > "${drc_usb_audio_state_file}"
+}
+
+drc_usb_audio_stop()
+{
+	drc_usb_audio_route_to_direct
+	service "${drc_usb_audio_brutefir_service}" onestop
+	rm -f "${drc_usb_audio_state_file}"
+}
+
+drc_usb_audio_status()
+{
+	if [ -f "${drc_usb_audio_state_file}" ]; then
+		echo "${name} active"
+		service "${drc_usb_audio_brutefir_service}" onestatus
+		return 0
+	fi
+
+	echo "${name} inactive"
+	return 1
+}
+
+run_rc_command "$1"

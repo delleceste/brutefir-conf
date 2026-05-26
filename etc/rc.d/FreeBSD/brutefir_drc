@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+# PROVIDE: brutefir_drc
+# REQUIRE: DAEMON
+# KEYWORD: shutdown
+#
+# Add to /etc/rc.conf:
+# brutefir_drc_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="brutefir_drc"
+rcvar="brutefir_drc_enable"
+
+load_rc_config "$name"
+
+: ${brutefir_drc_enable:="NO"}
+: ${brutefir_drc_user:="giacomo"}
+: ${brutefir_drc_home:="/home/giacomo"}
+: ${brutefir_drc_command:="/usr/local/bin/brutefir"}
+: ${brutefir_drc_conf:="/home/giacomo/DRC/brutefir-conf/brutefir-120.blue+0dB.conf"}
+: ${brutefir_drc_pidfile:="/var/run/brutefir_drc.pid"}
+: ${brutefir_drc_path:="/usr/local/bin:/usr/bin:/bin"}
+
+pidfile="${brutefir_drc_pidfile}"
+required_files="${brutefir_drc_conf}"
+command="/usr/sbin/daemon"
+command_args="-f -p ${pidfile} -u ${brutefir_drc_user} /usr/bin/env HOME=${brutefir_drc_home} PATH=${brutefir_drc_path} ${brutefir_drc_command} ${brutefir_drc_conf}"
+start_precmd="brutefir_drc_prestart"
+stop_postcmd="brutefir_drc_poststop"
+
+brutefir_drc_prestart()
+{
+	if [ ! -x "${brutefir_drc_command}" ]; then
+		warn "${brutefir_drc_command} is not executable"
+		return 1
+	fi
+
+	return 0
+}
+
+brutefir_drc_poststop()
+{
+	rm -f "${pidfile}"
+}
+
+run_rc_command "$1"
