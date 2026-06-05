@@ -7,6 +7,20 @@ POSITION="120.blue"   # speaker geometry / filter set to use
 VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
 VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
 
+stop_virtual_oss() {
+  local was_running=0
+  # targeted kill via PID file (written by virtual_oss itself as root)
+  if [ -f "$VIRTUAL_OSS_PID" ]; then
+    sudo kill "$(sudo cat "$VIRTUAL_OSS_PID")" 2>/dev/null && was_running=1 || true
+    sudo rm -f "$VIRTUAL_OSS_PID"
+  fi
+  # catch any orphaned or duplicate instances not covered by the PID file
+  if sudo killall virtual_oss 2>/dev/null; then
+    was_running=1
+  fi
+  [ "$was_running" -eq 1 ] && sleep 1 || true
+}
+
 usage() {
   echo "Usage: $0 <rate>|resamp|off [variant]"
   echo "  rate     : 44100 | 48000 | 88200 | 96000 | 192000"
@@ -64,11 +78,8 @@ fi
 # ── off: re-enable direct DAC, stop virtual_oss ──────────────────────────────
 if [ "$mode" = "off" ]; then
   mpc enable only 1
-  if [ -f "$VIRTUAL_OSS_PID" ]; then
-    echo "stopping virtual_oss"
-    sudo kill "$(sudo cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
-    sudo rm -f "$VIRTUAL_OSS_PID"
-  fi
+  echo "stopping virtual_oss"
+  stop_virtual_oss
   echo "off" > "$STATE_FILE"
   chmod 644 "$STATE_FILE" 2>/dev/null || true
   echo "DRC stopped"
@@ -83,12 +94,8 @@ if [ ! -f "$conf_file" ]; then
 fi
 
 # ── restart virtual_oss at the required sample rate ──────────────────────────
-if [ -f "$VIRTUAL_OSS_PID" ]; then
-  echo "stopping virtual_oss"
-  sudo kill "$(sudo cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
-  sudo rm -f "$VIRTUAL_OSS_PID"
-  sleep 1
-fi
+echo "stopping virtual_oss"
+stop_virtual_oss
 echo "starting virtual_oss at ${actual_rate} Hz"
 # shellcheck disable=SC2086
 sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
