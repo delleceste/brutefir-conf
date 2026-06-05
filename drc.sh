@@ -18,8 +18,20 @@ STATE_FILE="$base_dir/last_arg"
 _sudo() { [ "$(id -u)" -eq 0 ] && "$@" || sudo "$@"; }
 
 stop_virtual_oss() {
-  _sudo killall -w virtual_oss 2>/dev/null || true
+  local pid
+  pid=$(_sudo cat "$VIRTUAL_OSS_PID" 2>/dev/null) && _sudo kill "$pid" 2>/dev/null || true
+  _sudo killall virtual_oss 2>/dev/null || true
   _sudo rm -f "$VIRTUAL_OSS_PID"
+  # pgrep needs no root; escalate to SIGKILL after ~3 s if still alive
+  local i=0
+  while pgrep -q virtual_oss 2>/dev/null; do
+    if [ "$i" -ge 15 ]; then
+      _sudo killall -KILL virtual_oss 2>/dev/null || true
+      break
+    fi
+    sleep 0.2
+    i=$((i + 1))
+  done
 }
 
 usage() {
