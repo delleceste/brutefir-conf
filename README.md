@@ -176,6 +176,23 @@ If the parameter equals *off*, brutefir is stopped.
 
 Additionally, the script calls *mpc* (MPD control application) so that the audio device in *MPD* is switched to the *loopback* device targeted by brutefir or to the native device (if the parameter is *off*)
 
+## MPD native DRC output format
+
+`mpd/musicpd.conf` has a single native DRC output named `DRC-native`.  It uses:
+
+```conf
+format "*:*:*"
+```
+
+MPD's `format` setting is `sample_rate:bits:channels`.  An asterisk means that
+the corresponding attribute is not enforced, so `*:*:*` tells MPD not to force
+sample rate, bit depth, or channel count.  This is intentional: native DRC mode
+requires selecting the `drc.sh` rate that matches the source track, while MPD
+passes the source format through unchanged.
+
+The separate `DRC-resamp` output keeps `format "192000:24:2"` because that mode
+explicitly asks MPD to resample everything to 192 kHz.
+
 # The doc/ directory
 It shall contain at least two plots (PNG format), each one with two curves: uncorrected and corrected:
 - current.amplitude.png: amplitude
@@ -339,6 +356,173 @@ service brutefir_drc onestop    # stop BruteFIR only
 The `devd` attach rule matches USB audio interface class `0x01`. The detach rule
 stops DRC on USB device removal; add DAC-specific `vendor`/`product` matches if the
 host has other USB devices whose removal should not stop DRC.
+
+# scripts/REW2raw.sh
+
+Converts a REW-exported WAV impulse response to a brutefir-ready raw float64 file,
+resampling to a target sample rate (default: 192 kHz).
+
+The input files are impulse-response FIR filters. For this reason the conversion
+does **not** peak-normalise the filter. Peak normalisation would make the result
+depend on the largest sample in each channel, including interpolation overshoot
+introduced by resampling, and would therefore alter the intended filter gain.
+
+Instead, after resampling, the script applies one deterministic FIR coefficient
+scale:
+
+```
+scale = input_sample_rate / target_sample_rate
+gain_db = 20 * log10(scale)
+```
+
+This gain depends only on the sample-rate conversion ratio. It does not depend on
+the absolute peak level of the filter, and it is the same for left and right
+channels when both source WAVs have the same sample rate.
+
+Theory/source: Julius O. Smith's *Physical Audio Signal Processing* writes that
+sampling an impulse response can be expressed as `gamma(t) -> T gamma(nT) ->
+gamma(n)`, where `T` is the sampling period. Since `T = 1/Fs`, converting FIR
+coefficients from `Fs_source` to `Fs_target` requires:
+
+```
+scale = T_target / T_source = Fs_source / Fs_target
+```
+
+Reference: https://www.dsprelated.com/freebooks/pasp/Sampling_Impulse_Response.html
+
+Examples for REW exports at 48 kHz:
+
+| Target rate | Scale | Gain |
+|---|---:|---:|
+| 44100 | 1.0884353741 | +0.73605296 dB |
+| 48000 | 1.0 | 0.00000000 dB |
+| 96000 | 0.5 | -6.02059991 dB |
+| 192000 | 0.25 | -12.04119983 dB |
+
+The printed peak values are diagnostics only. They are useful to inspect clipping
+risk and resampling behaviour, but they do not affect the applied gain.
+
+## Resampling quality
+
+The SoX `rate` step uses:
+
+| Flag | Effect |
+|------|--------|
+| `-v` | Very high quality: band-limited interpolation, 175 dB noise rejection |
+| `-L` | Linear phase: preserves the filter's own phase response |
+| `-s` | Steep filter: 99% pass-band, keeps near-Nyquist content |
+| `-b 64 -e floating-point` | 64-bit float intermediate file, no precision loss before gain stage |
+| `-L -t raw -e floating-point -b 64` | final output format: `FLOAT64_LE` raw |
+
+## Usage
+
+```bash
+scripts/REW2raw.sh [options] <in.wav> [out.raw|out.wav] [raw|wav] [sample_rate]
+```
+
+All arguments after `in.wav` are optional.
+
+Options:
+
+| Option | Meaning |
+|---|---|
+| `--exact-output` | write exactly the output filename supplied by the caller |
+| `--no-keep-intermediate` | remove the temporary float64 WAV after conversion |
+| `--intermediate-dir DIR` | write the intermediate float64 WAV in `DIR` |
+
+## Examples
+
+**Explicit output name:**
+
+```bash
+scripts/REW2raw.sh FL-REW.wav filters/120.blue/FL-192k.raw
+# writes filters/120.blue/FL-192k_sox_upsample_float64.raw
+```
+
+By default, `REW2raw.sh` inserts `_sox_upsample_float64` before the output
+extension. Use `--exact-output` when the caller needs a stable filename such as
+`L.raw` or `R.raw`.
+
+**Exact output name, useful from wrapper scripts:**
+
+```bash
+scripts/REW2raw.sh --exact-output --no-keep-intermediate \
+  filters/120.blue/rew/FLX-trimmed-48k.wav \
+  filters/120.blue/96000/L.raw \
+  raw 96000
+```
+
+**Keep final output as WAV (e.g. for inspection in REW or Audacity):**
+
+```bash
+scripts/REW2raw.sh FL-REW.wav FL-192k.wav wav
+```
+
+**Custom sample rate (e.g. 96 kHz):**
+
+```bash
+scripts/REW2raw.sh FL-REW.wav FL-96k.raw raw 96000
+```
+
+# scripts/REW2raw-all-rates.sh
+
+Generates a stereo pair (`L.raw`, `R.raw`) for every numeric sample-rate directory
+directly below an output filter root.
+
+For the current `filters/120.blue` layout:
+
+```text
+filters/120.blue/
+  44100/
+  48000/
+  88200/
+  96000/
+  192000/
+  rew/
+```
+
+the script processes only the numeric directories and ignores `rew/`.
+
+## Usage
+
+```bash
+scripts/REW2raw-all-rates.sh \
+  -L filters/120.blue/rew/FLX-trimmed-48k.wav \
+  -R filters/120.blue/rew/FRX-trimmed-48k.wav \
+  -o filters/120.blue
+```
+
+Options:
+
+| Option | Meaning |
+|---|---|
+| `-L FILE` | left REW-exported WAV impulse response |
+| `-R FILE` | right REW-exported WAV impulse response |
+| `-o DIR` | output root, e.g. `filters/120.blue` |
+| `-y` | do not ask before writing each `L.raw` / `R.raw` pair |
+
+For each numeric sample-rate directory, the script writes:
+
+| File | Meaning |
+|---|---|
+| `L.raw` | left filter, raw `FLOAT64_LE` |
+| `R.raw` | right filter, raw `FLOAT64_LE` |
+| `sox.txt` | full conversion log: wrapper command, `REW2raw.sh` calls, SoX command lines, SoX output and measured stats |
+
+Without `-y`, the script asks before writing each rate directory. This is important
+when `filters/120.blue/192000` already contains the checked/current filters: answer
+`n` for that directory if it must not be overwritten.
+
+If a destination already contains `L.raw` or `R.raw`, the prompt explicitly lists
+the existing file(s) and asks for overwrite confirmation. With `-y`, existing
+outputs are overwritten automatically, but the script still prints an overwrite
+warning before doing so.
+
+After generating filters, run `python3 scripts/headroom_calc.py` to determine the
+correct `attenuation:` value for the brutefir `.conf` file. Headroom calculation is
+separate from REW-to-RAW conversion: `REW2raw.sh` preserves FIR gain according to
+the sample-rate ratio, while `headroom_calc.py` determines the playback attenuation
+needed to avoid clipping.
 
 # History and notes
 
