@@ -160,22 +160,23 @@ Where:
   `192000`.
 - `<variant>` is optional and is appended directly to the filename, e.g. `+2dB`.
 
-Examples:
+Examples (POSITION="120.blue"):
 
 ```text
-./drc.sh 120.blue 44100
+./drc.sh 44100
   -> configs/120.blue/brutefir-44100.conf
 
-./drc.sh 120.blue 192000
+./drc.sh 192000
   -> configs/120.blue/brutefir-192000.conf
 
-./drc.sh 120.blue 192000 +2dB
+./drc.sh 192000 +2dB
   -> configs/120.blue/brutefir-192000+2dB.conf
 
-./drc.sh 120.blue resamp
+./drc.sh resamp
   -> configs/120.blue/brutefir-192000.conf
 
-./drc.sh 185 192000
+# To use the 185 position, set POSITION="185" in drc.sh; then:
+./drc.sh 192000
   -> configs/185/brutefir-192000.conf
 ```
 
@@ -189,11 +190,15 @@ The config file then declares:
 
 ## `drc.sh` Modes
 
+The speaker position is not a command-line argument. It is set by the
+`POSITION` variable at the top of `drc.sh` (currently `120.blue`). Edit that
+variable when changing speaker geometry.
+
 Usage:
 
 ```sh
-./drc.sh <position> <rate> [variant]
-./drc.sh <position> resamp [variant]
+./drc.sh <rate> [variant]
+./drc.sh resamp [variant]
 ./drc.sh off
 ```
 
@@ -215,7 +220,7 @@ BruteFIR filter/config exists.
 Example:
 
 ```sh
-./drc.sh 120.blue 96000
+./drc.sh 96000
 ```
 
 This does the following:
@@ -261,9 +266,9 @@ An asterisk means that attribute is not enforced. `*:*:*` means:
 The user is responsible for selecting the `drc.sh` rate that matches the source
 track rate. For example:
 
-- 44.1 kHz / 16-bit source -> `./drc.sh 120.blue 44100`
-- 44.1 kHz / 24-bit source -> `./drc.sh 120.blue 44100`
-- 96 kHz source -> `./drc.sh 120.blue 96000`
+- 44.1 kHz / 16-bit source -> `./drc.sh 44100`
+- 44.1 kHz / 24-bit source -> `./drc.sh 44100`
+- 96 kHz source -> `./drc.sh 96000`
 
 BruteFIR processes internally in floating point. Source bit depth is not the DRC
 routing selector; sample rate is.
@@ -275,7 +280,7 @@ routing selector; sample rate is.
 Example:
 
 ```sh
-./drc.sh 120.blue resamp
+./drc.sh resamp
 ```
 
 This does the following:
@@ -302,13 +307,13 @@ playlists, but it is not native-rate playback.
 
 ### Variant Mode
 
-The optional third argument selects a filter/config variant by appending the
+The optional second argument selects a filter/config variant by appending the
 variant string to the BruteFIR config filename.
 
 Example:
 
 ```sh
-./drc.sh 120.blue 192000 +2dB
+./drc.sh 192000 +2dB
 ```
 
 This selects:
