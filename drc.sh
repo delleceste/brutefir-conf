@@ -7,6 +7,12 @@ GEOMETRY="120.blue"   # speaker geometry / filter set to use
 VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
 VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
 
+# ── paths ─────────────────────────────────────────────────────────────────────
+drc_root="/home/giacomo/DRC"
+brutefir_conf_dir="brutefir-conf"
+base_dir="$drc_root/$brutefir_conf_dir"
+STATE_FILE="$base_dir/last_arg"
+
 stop_virtual_oss() {
   local was_running=0
   # targeted kill via PID file (written by virtual_oss itself as root)
@@ -22,24 +28,47 @@ stop_virtual_oss() {
 }
 
 usage() {
-  echo "Usage: $0 <rate>|resamp|off [variant]"
+  echo "Usage: $0 <rate>|resamp|restore|off [variant]"
   echo "  rate     : 44100 | 48000 | 88200 | 96000 | 192000"
   echo "             native mode: select the rate matching the source track;"
   echo "             MPD uses DRC-native format *:*:* and does not resample"
   echo "  resamp   : MPD resamples everything to 192000 Hz"
+  echo "  restore  : re-apply the last saved state (reads last_arg file);"
+  echo "             falls back to 192000 if no previous active state exists"
   echo "  off      : stop brutefir and DRC; enable direct DAC output"
   echo "  variant  : optional filter variant, e.g. +2dB (default: none)"
   echo
-  echo "  Position is fixed to: $GEOMETRY"
+  echo "  Geometry is fixed to: $GEOMETRY"
   echo "  Edit GEOMETRY at the top of this script to change it."
   echo
   echo "Examples:"
   echo "  $0 192000"
   echo "  $0 192000 +2dB"
   echo "  $0 resamp"
+  echo "  $0 restore"
   echo "  $0 off"
 }
 
+# ── restore: re-apply the last saved state ───────────────────────────────────
+if [ $# -eq 1 ] && [ "$1" = "restore" ]; then
+  state=""
+  [ -f "$STATE_FILE" ] && state=$(cat "$STATE_FILE")
+  case "$state" in
+    off|"")
+      echo "No previous active state — starting at default 192000 Hz"
+      exec "$0" 192000
+      ;;
+    *)
+      # state is "GEOMETRY RATE [VARIANT]" — strip the geometry prefix
+      args="${state#* }"
+      echo "Restoring last state: $state"
+      # shellcheck disable=SC2086
+      exec "$0" $args
+      ;;
+  esac
+fi
+
+# ── argument parsing ──────────────────────────────────────────────────────────
 if [ $# -eq 1 ] && [ "$1" = "off" ]; then
   mode="off"
   rate=""
@@ -59,11 +88,6 @@ else
   exit 1
 fi
 
-drc_root="/home/giacomo/DRC"
-brutefir_conf_dir="brutefir-conf"
-base_dir="$drc_root/$brutefir_conf_dir"
-
-STATE_FILE="$base_dir/last_arg"
 process_name="brutefir"
 
 # ── stop brutefir ────────────────────────────────────────────────────────────
@@ -119,4 +143,4 @@ mpc enable "$mpd_output"
 echo "${GEOMETRY} ${rate}${variant:+ ${variant}}" > "$STATE_FILE"
 chmod 644 "$STATE_FILE" 2>/dev/null || true
 
-echo "DRC active: position=${GEOMETRY} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"
+echo "DRC active: geometry=${GEOMETRY} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"

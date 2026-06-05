@@ -4,6 +4,11 @@
 
 GEOMETRY="120.blue"   # speaker geometry / filter set to use — keep in sync with drc.sh
 
+if [ "${1:-}" = "--geometry" ]; then
+    echo "$GEOMETRY"
+    exit 0
+fi
+
 # ps -ax -o args= works on both Linux and FreeBSD; grep with a char class
 # avoids matching the grep process itself.
 configs=$(ps -ax -o args= 2>/dev/null \

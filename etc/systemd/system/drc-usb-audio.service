@@ -1,17 +1,13 @@
 [Unit]
-Description=Setup DRC audio routing when USB DAC is connected
+Description=DRC audio routing when USB DAC is connected
 After=sound.target
-Wants=brutefir-drc.service
-Before=brutefir-drc.service
-PropagatesStopTo=brutefir-drc.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-User=giacomo
+User=root
 Environment=HOME=/home/giacomo
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=XDG_RUNTIME_DIR=/run/user/1001
 ExecStartPre=/bin/sleep 1
-ExecStart=mpc enable only 3
-ExecStop=mpc enable only 1
+ExecStart=/home/giacomo/DRC/brutefir-conf/drc.sh restore
+ExecStop=/home/giacomo/DRC/brutefir-conf/drc.sh off

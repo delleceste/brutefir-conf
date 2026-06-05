@@ -75,39 +75,23 @@ Configuration files, scripts, filters (raw format), ... for brutefir under Linux
 
 Designed and generated from one or more of the DRC-xxx github.com/delleceste folders
 
-# Top level directory *.conf files
+# configs/ directory
 
-The top level directory brutefir-XY.conf files are brutefir configuration files.
-Each one *shall load only one brutefir filter*
-XY identifies the *name* of the filter/configuration, and it is passed to the *scripts/drc.sh* script as parameter so that brutefir is launched with *brutefir-XY.conf* configuration file.
-The parameter *off* is reserved and used by *scripts/drc.sh* to stop the brutefir process.
+Per-geometry, per-rate brutefir configuration files live under `configs/<geometry>/`.
 
-## Examples
-- *brutefir-current.conf*, launched with *drc.sh current*, script pointing to the current (latest) *default* configuration
-- *brutefir-last.1.conf*, second last configuration (for comparison purposes, optional)
-- *brutefir-last.2.conf*, third last configuration (for comparison purposes, optional)
+Each file sets `sampling_rate`, points to the matching filter files in `filters/<geometry>/<rate>/`,
+and is selected automatically by `drc.sh` based on the active geometry and rate.
 
-### Additional config files for flavors different than default
+Variant configs (e.g. `+2dB`) live alongside the default:
+`configs/120.blue/brutefir-192000.conf` (default), `configs/120.blue/brutefir-192000+2dB.conf`, etc.
 
-Other brutefir-XY.conf can be optionally added (to offer flavors of different corrections / equalizations).
+# The filters/ directory
 
-#### Note:
+Contains filter raw files under `filters/<geometry>/<rate>/L.raw` and `R.raw`.
+Variants live one level deeper: `filters/<geometry>/<rate>/<variant>/L.raw`.
 
-Filters used in additional brutefir-XY.conf shall reside within specific subfolders, possibly self describing, and shall not clutter the *filters/* top level directory
-
-# The filters/ directory and the symlinks to the current default filter
-
-Contains the filters, each under a directory named after the speaker distance from the front wall. For example, a dir named *120* shall contain filters
-designed for speaker placement at 120cm from the front wall. Further documentation shall define other distances, such as the listening position.
-
-## Symlinks to the default filter currently in use
-
-To simplify and minimize editing the brutefir configuration file, two symbolic links:
-
-- LF.raw  (Left Filter)
-- RF.raw  (Right Filter)
-
-shall point to the *.raw* filter in use for the *current* configuration.
+See `FILTERS_AND_DRC.md` for full documentation of the filter layout, REW2raw conversion,
+and how to add new rates or geometries.
 
 #  The old.pos/ directory
 Configuration files referring to older speaker / listening positions shall be moved here to avoid cluttering the main directory
@@ -170,11 +154,21 @@ The left channel limits in all pairs. Set `attenuation:` in the `.conf` file as 
 
 # The drc.sh script
 
-The *drc.sh* Bash script shall be located in the main folder. It starts the *brutefir* convolution engine and uses `/usr/bin/env bash` so it works with Bash in `/usr/bin` on Linux and `/usr/local/bin` on FreeBSD.
-Accepts one parameter, e.g. *current*. Calls *brutefir brutefir-current.conf* (the current configuration)
-If the parameter equals *off*, brutefir is stopped.
+`drc.sh` is the single control point for the DRC pipeline. It uses `/usr/bin/env bash`
+so it works with Bash in `/usr/bin` on Linux and `/usr/local/bin` on FreeBSD.
 
-Additionally, the script calls *mpc* (MPD control application) so that the audio device in *MPD* is switched to the *loopback* device targeted by brutefir or to the native device (if the parameter is *off*)
+Signature: `drc.sh <rate>|resamp|restore|off [variant]`
+
+- `<rate>` — start brutefir at the given sample rate (44100, 48000, 88200, 96000, 192000);
+  restarts virtual_oss at the same rate; switches MPD to `DRC-native`
+- `resamp` — restarts everything at 192000 Hz; switches MPD to `DRC-resamp` (MPD resamples)
+- `restore` — reads `last_arg` and re-applies the last saved state; falls back to 192000 if
+  no active state was saved; used by all service files on start
+- `off` — stops brutefir and virtual_oss; switches MPD back to output 1
+- `variant` — optional second argument, e.g. `+2dB`, selects an alternate filter set
+
+State is saved to `last_arg` on each successful invocation so `restore` can recover it.
+Geometry (speaker position) is hardcoded at the top of the script (`GEOMETRY="120.blue"`).
 
 ## MPD native DRC output format
 
@@ -210,19 +204,28 @@ USB DAC plugged in
   └─ udev: ACTION==add, SUBSYSTEM==sound, KERNEL==controlC*, SUBSYSTEMS==usb
        └─ SYSTEMD_WANTS=drc-usb-audio.service  (no-op if already active)
             └─ systemd starts drc-usb-audio.service
-                 ├─ Wants=brutefir-drc.service  →  brutefir starts (own cgroup)
-                 └─ ExecStart: mpc switches MPD output to DAC+DRC (output 3)
+                 └─ ExecStartPre: sleep 1  (USB settle time)
+                 └─ ExecStart: drc.sh restore
+                      ├─ reads last_arg state file
+                      ├─ restarts virtual_oss at saved rate
+                      ├─ starts brutefir with saved config
+                      └─ switches MPD to saved output (DRC-native or DRC-resamp)
 
 USB DAC unplugged
   └─ udev: ACTION==remove, SUBSYSTEM==sound, KERNEL==controlC*, SUBSYSTEMS==usb
        └─ RUN: systemctl stop drc-usb-audio.service
-            ├─ ExecStop: mpc switches MPD back to output 1
-            └─ PropagatesStopTo=brutefir-drc.service  →  brutefir stops
+            └─ ExecStop: drc.sh off
+                 ├─ stops brutefir
+                 ├─ stops virtual_oss
+                 └─ switches MPD back to output 1
 ```
 
 `RemainAfterExit=yes` on `drc-usb-audio.service` prevents the multiple `controlC*` add
 events from a single plug-in from starting duplicate brutefir instances. The `remove` rule
 resets the service to inactive so the next plug-in works correctly.
+
+`brutefir-drc.service` provides the same `drc.sh restore` / `drc.sh off` lifecycle for
+manual control and optional boot-time startup, without the USB settle delay.
 
 ## Files
 
@@ -245,21 +248,18 @@ ACTION=="add", SUBSYSTEM=="sound", KERNEL=="controlC*", SUBSYSTEMS=="usb",
 
 ## Why two service units
 
-A single `Type=oneshot` service that launches brutefir and exits would have brutefir killed
-by systemd when the service's cgroup is cleaned up. `KillMode=none` avoids that but is
-deprecated. The correct solution is to run brutefir in its **own** service unit with its own
-cgroup, so systemd tracks and manages it independently.
+Both services use `Type=oneshot` with `RemainAfterExit=yes`. They both call `drc.sh restore`
+on start and `drc.sh off` on stop; the only difference is that `drc-usb-audio.service` adds
+`ExecStartPre=/bin/sleep 1` to wait for the USB DAC to settle before starting brutefir.
 
-**`brutefir-drc.service`** — `Type=simple`, runs brutefir in the foreground (no `-daemon`
-flag). systemd owns its full lifecycle: start, stop, and restart. The process stays alive
-as long as this unit is active.
+**`brutefir-drc.service`** — for manual control and optional boot-time startup. No delay.
+Can be enabled in `/etc/systemd/system/` to start DRC automatically at boot.
 
-**`drc-usb-audio.service`** — `Type=oneshot` with `RemainAfterExit=yes`, triggered by udev.
-Declares `Wants=brutefir-drc.service` so systemd starts brutefir-drc automatically, then
-waits 1 s for brutefir to initialise (`ExecStartPre=/bin/sleep 1`) before switching MPD
-outputs. `RemainAfterExit=yes` keeps the service "active" after ExecStart completes, so
-repeated udev events (one USB device generates several `controlC*` events) are ignored and
-do not launch additional brutefir instances.
+**`drc-usb-audio.service`** — triggered by udev on USB DAC plug-in. The 1-second settle
+delay avoids starting brutefir before the DAC's OSS device node is available.
+`RemainAfterExit=yes` keeps the service "active" after ExecStart completes so repeated
+udev events (one USB device generates several `controlC*` events) are ignored and do not
+launch additional brutefir instances.
 
 ## Installation
 
@@ -275,20 +275,16 @@ make install-udev     # copy udev rule and reload udev only
 
 ## Manual control
 
-The two units are linked: stopping `drc-usb-audio.service` also stops `brutefir-drc.service`
-(via `PartOf=`) and switches MPD back to the direct output (via `ExecStop`). This is the
-recommended way to stop everything cleanly.
-
 ```bash
-# Stop DRC completely (stops brutefir + switches MPD back to output 1)
+# Stop DRC completely (stops brutefir + virtual_oss + switches MPD back to output 1)
 sudo systemctl stop drc-usb-audio.service
 
-# Start DRC manually (starts brutefir + switches MPD to output 3)
+# Start DRC (restores last saved rate/variant, or defaults to 192000)
 sudo systemctl start drc-usb-audio.service
 
-# Stop/start brutefir alone (MPD output is not changed)
-sudo systemctl stop  brutefir-drc.service
+# Manual DRC control without USB trigger
 sudo systemctl start brutefir-drc.service
+sudo systemctl stop  brutefir-drc.service
 
 # Check status
 systemctl status brutefir-drc.service
@@ -299,13 +295,8 @@ journalctl -fu brutefir-drc.service
 journalctl -fu drc-usb-audio.service
 ```
 
-`drc.sh` continues to work for manual invocation outside of systemd (it starts brutefir
-with `-daemon` directly and switches MPD outputs in one step).
-
-## User ID note
-
-`drc-usb-audio.service` sets `XDG_RUNTIME_DIR=/run/user/1001` (giacomo's UID).
-If the UID changes, update that value in the service file and re-run `make install-systemd`.
+`drc.sh` continues to work for manual invocation outside of systemd, including direct
+rate/variant selection: `drc.sh 192000`, `drc.sh 192000 +2dB`, `drc.sh resamp`, `drc.sh off`.
 
 ## FreeBSD rc.d scripts
 
@@ -325,15 +316,11 @@ make install-freebsd
 ```
 
 The `devd` rule calls `service ... onestart/onestop`, so no `rc.conf` enable flags
-are required for hotplug operation. Use `/etc/rc.conf` for local overrides; the
-defaults match the Linux service files:
+are required for hotplug operation. Use `/etc/rc.conf` for local overrides:
 
 ```sh
-brutefir_drc_user="giacomo"
-brutefir_drc_conf="/home/giacomo/DRC/brutefir-conf/brutefir-120.blue+0dB.conf"
-drc_usb_audio_start_output="3"
-drc_usb_audio_stop_output="1"
-drc_usb_audio_mpd_port="6600"
+brutefir_drc_drcsh="/home/giacomo/DRC/brutefir-conf/drc.sh"
+drc_usb_audio_start_delay="1"
 ```
 
 If you want either service to start at boot independently of USB hotplug, also set
@@ -347,10 +334,10 @@ drc_usb_audio_enable="YES"
 Manual control:
 
 ```sh
-service drc_usb_audio onestart  # start BruteFIR + switch MPD to output 3
-service drc_usb_audio onestop   # switch MPD to output 1 + stop BruteFIR
-service brutefir_drc onestart   # start BruteFIR only
-service brutefir_drc onestop    # stop BruteFIR only
+service drc_usb_audio onestart  # restore last DRC state + switch MPD
+service drc_usb_audio onestop   # stop BruteFIR + switch MPD to output 1
+service brutefir_drc onestart   # restore last DRC state (no USB settle delay)
+service brutefir_drc onestop    # stop BruteFIR + virtual_oss + switch MPD
 ```
 
 The `devd` attach rule matches USB audio interface class `0x01`. The detach rule
