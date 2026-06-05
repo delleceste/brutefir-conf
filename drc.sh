@@ -13,9 +13,13 @@ brutefir_conf_dir="brutefir-conf"
 base_dir="$drc_root/$brutefir_conf_dir"
 STATE_FILE="$base_dir/last_arg"
 
+# Skip sudo when already root (service files run as root); avoids the sudo
+# parent+monitor process tree that results in multiple processes in ps.
+_sudo() { [ "$(id -u)" -eq 0 ] && "$@" || sudo "$@"; }
+
 stop_virtual_oss() {
-  sudo killall -w virtual_oss 2>/dev/null || true
-  sudo rm -f "$VIRTUAL_OSS_PID"
+  _sudo killall -w virtual_oss 2>/dev/null || true
+  _sudo rm -f "$VIRTUAL_OSS_PID"
 }
 
 usage() {
@@ -113,7 +117,7 @@ echo "stopping virtual_oss"
 stop_virtual_oss
 echo "starting virtual_oss at ${actual_rate} Hz"
 # shellcheck disable=SC2086
-sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS
+_sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
 sleep 1
 
 # ── start brutefir ───────────────────────────────────────────────────────────
