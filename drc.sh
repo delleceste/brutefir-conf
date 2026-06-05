@@ -1,53 +1,106 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-if [ -z "$1" ]; then
-  echo "$0 eq_type, e.g. $0 noeq, $0 eq1, $0 off"
+VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
+VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
+
+usage() {
+  echo "Usage: $0 <position> <rate>|resamp|off"
+  echo "  position : speaker position, e.g. 120.blue or 185"
+  echo "  rate     : 44100 | 48000 | 88200 | 96000 | 192000"
+  echo "  resamp   : MPD resamples everything to 192000 Hz"
+  echo "  off      : stop brutefir and DRC; enable direct DAC output"
+  echo
+  echo "Examples:"
+  echo "  $0 120.blue 192000"
+  echo "  $0 120.blue resamp"
+  echo "  $0 off"
+}
+
+if [ $# -eq 1 ] && [ "$1" = "off" ]; then
+  mode="off"
+  position=""
+  rate=""
+elif [ $# -eq 2 ]; then
+  position="$1"
+  rate="$2"
+  if [ "$rate" = "resamp" ]; then
+    mode="resamp"
+    actual_rate=192000
+  else
+    mode="normal"
+    actual_rate="$rate"
+  fi
+else
+  usage
   exit 1
 fi
 
 drc_root="/home/giacomo/DRC"
 brutefir_conf_dir="brutefir-conf"
-conf_file="$drc_root/$brutefir_conf_dir/brutefir-$1.conf"
+base_dir="$drc_root/$brutefir_conf_dir"
 
+STATE_FILE="$base_dir/last_arg"
 process_name="brutefir"
 
-if [ "$1" != "off" ] && [ ! -e "$conf_file" ]; then
-  echo "file $conf_file does not exist"
-  exit 1
-fi
-
-
-# inside /home/giacomo/DRC/brutefir-conf/drc.sh, soon after parameter validation:
-STATE_FILE="$drc_root/$brutefir_conf_dir/last_arg"
-echo "$1" > "$STATE_FILE"
-chmod 644 "$STATE_FILE" 2>/dev/null || true
-
-if pgrep "$process_name" > /dev/null
-then
+# ── stop brutefir ────────────────────────────────────────────────────────────
+if pgrep "$process_name" > /dev/null; then
   echo "stopping brutefir"
   killall "$process_name"
+  sleep 1
 else
   echo "brutefir not running"
 fi
 
-if [ "$1" = "off" ]; then
-
-  # mpd on port 6600
-  # /etc/mpd.conf
+# ── off: re-enable direct DAC, stop virtual_oss ──────────────────────────────
+if [ "$mode" = "off" ]; then
   mpc enable only 1
-  
+  if [ -f "$VIRTUAL_OSS_PID" ]; then
+    echo "stopping virtual_oss"
+    sudo kill "$(cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
+    rm -f "$VIRTUAL_OSS_PID"
+  fi
+  echo "off" > "$STATE_FILE"
+  chmod 644 "$STATE_FILE" 2>/dev/null || true
   echo "DRC stopped"
   exit 0
 fi
 
+# ── validate config ──────────────────────────────────────────────────────────
+conf_file="$base_dir/configs/$position/brutefir-${actual_rate}.conf"
+if [ ! -f "$conf_file" ]; then
+  echo "config not found: $conf_file"
+  exit 1
+fi
+
+# ── restart virtual_oss at the required sample rate ──────────────────────────
+if [ -f "$VIRTUAL_OSS_PID" ]; then
+  echo "stopping virtual_oss"
+  sudo kill "$(cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
+  rm -f "$VIRTUAL_OSS_PID"
+  sleep 1
+fi
+echo "starting virtual_oss at ${actual_rate} Hz"
+# shellcheck disable=SC2086
+sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
 sleep 1
 
-echo "Starting 'brutefir $conf_file -daemon'..."
-brutefir "$conf_file" -daemon >/tmp/brutefir.out 2>&1
-
+# ── start brutefir ───────────────────────────────────────────────────────────
+echo "starting brutefir: $conf_file"
+brutefir "$conf_file" -daemon > /tmp/brutefir.out 2>&1
 sleep 1
 
+# ── enable the matching MPD output ───────────────────────────────────────────
+if [ "$mode" = "resamp" ]; then
+  mpd_output="DRC-resamp"
+else
+  mpd_output="DRC-${rate}"
+fi
+mpc disable all
+mpc enable "$mpd_output"
 
-# mpd on port 6600
-# /etc/mpd.conf
-mpc enable only 3
+# ── record state ─────────────────────────────────────────────────────────────
+echo "${position} ${rate}" > "$STATE_FILE"
+chmod 644 "$STATE_FILE" 2>/dev/null || true
+
+echo "DRC active: position=${position} rate=${rate} (MPD output: ${mpd_output})"
