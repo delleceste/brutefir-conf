@@ -63,8 +63,8 @@ if [ "$mode" = "off" ]; then
   mpc enable only 1
   if [ -f "$VIRTUAL_OSS_PID" ]; then
     echo "stopping virtual_oss"
-    sudo kill "$(cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
-    rm -f "$VIRTUAL_OSS_PID"
+    sudo kill "$(sudo cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
+    sudo rm -f "$VIRTUAL_OSS_PID"
   fi
   echo "off" > "$STATE_FILE"
   chmod 644 "$STATE_FILE" 2>/dev/null || true
@@ -82,8 +82,8 @@ fi
 # ── restart virtual_oss at the required sample rate ──────────────────────────
 if [ -f "$VIRTUAL_OSS_PID" ]; then
   echo "stopping virtual_oss"
-  sudo kill "$(cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
-  rm -f "$VIRTUAL_OSS_PID"
+  sudo kill "$(sudo cat "$VIRTUAL_OSS_PID")" 2>/dev/null || true
+  sudo rm -f "$VIRTUAL_OSS_PID"
   sleep 1
 fi
 echo "starting virtual_oss at ${actual_rate} Hz"
