@@ -84,10 +84,10 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
 
   # virtual_oss: find the -r argument in the running process command line
   _st_voss_rate=$(ps -ax -o args= 2>/dev/null \
-    | awk '/[v]irtual_oss/ && /-r/ {for(i=1;i<=NF;i++) if($i=="-r"){print $(i+1); exit}}')
+    | awk '($1=="virtual_oss" || $1~/\/virtual_oss$/) && /-r/ {for(i=1;i<=NF;i++) if($i=="-r"){print $(i+1); exit}}')
 
   # brutefir: extract rate and optional variant from the running conf path
-  _st_bf_args=$(ps -ax -o args= 2>/dev/null | awk '/[b]rutefir.*\.conf/{print; exit}')
+  _st_bf_args=$(ps -ax -o args= 2>/dev/null | awk '($1=="brutefir" || $1~/\/brutefir$/) && /\.conf/{print; exit}')
   _st_bf_conf=$(echo "$_st_bf_args" | grep -o 'brutefir-[0-9][^ /]*\.conf' | head -1) || true
   _st_bf_rate=$(echo "$_st_bf_conf" | sed 's/brutefir-\([0-9]*\).*/\1/')
   _st_bf_var=$(echo "$_st_bf_conf"  | sed 's/brutefir-[0-9]*//;s/\.conf//')
