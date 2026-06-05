@@ -35,7 +35,7 @@ stop_virtual_oss() {
 }
 
 usage() {
-  echo "Usage: $0 <rate>|resamp|restore|off [variant]"
+  echo "Usage: $0 <rate>|resamp|restore|off|status [variant]"
   echo "  rate     : 44100 | 48000 | 88200 | 96000 | 192000"
   echo "             native mode: select the rate matching the source track;"
   echo "             MPD uses DRC-native format *:*:* and does not resample"
@@ -43,6 +43,7 @@ usage() {
   echo "  restore  : re-apply the last saved state (reads last_arg file);"
   echo "             falls back to 192000 if no previous active state exists"
   echo "  off      : stop brutefir and DRC; enable direct DAC output"
+  echo "  status   : show DRC state, virtual_oss rate, brutefir, and MPD output"
   echo "  variant  : optional filter variant, e.g. +2dB (default: none)"
   echo
   echo "  Geometry is fixed to: $GEOMETRY"
@@ -53,6 +54,7 @@ usage() {
   echo "  $0 192000 +2dB"
   echo "  $0 resamp"
   echo "  $0 restore"
+  echo "  $0 status"
   echo "  $0 off"
 }
 
@@ -73,6 +75,64 @@ if [ $# -eq 1 ] && [ "$1" = "restore" ]; then
       exec "$0" $args
       ;;
   esac
+fi
+
+# ── status: show DRC state, virtual_oss rate, brutefir, and MPD output ───────
+if [ $# -eq 1 ] && [ "$1" = "status" ]; then
+  _st_drc="off"
+  [ -f "$STATE_FILE" ] && _st_drc=$(cat "$STATE_FILE")
+
+  # virtual_oss: find the -r argument in the running process command line
+  _st_voss_rate=$(ps -ax -o args= 2>/dev/null \
+    | awk '/[v]irtual_oss/ && /-r/ {for(i=1;i<=NF;i++) if($i=="-r"){print $(i+1); exit}}')
+
+  # brutefir: extract rate and optional variant from the running conf path
+  _st_bf_args=$(ps -ax -o args= 2>/dev/null | awk '/[b]rutefir.*\.conf/{print; exit}')
+  _st_bf_conf=$(echo "$_st_bf_args" | grep -o 'brutefir-[0-9][^ /]*\.conf' | head -1) || true
+  _st_bf_rate=$(echo "$_st_bf_conf" | sed 's/brutefir-\([0-9]*\).*/\1/')
+  _st_bf_var=$(echo "$_st_bf_conf"  | sed 's/brutefir-[0-9]*//;s/\.conf//')
+
+  # MPD via mpc (mpc exits non-zero when MPD is unreachable)
+  _st_mpc=$(mpc status 2>/dev/null) || _st_mpc=""
+  _st_mpc_state=$(echo "$_st_mpc" | sed -n 's/.*\[\(playing\|paused\|stopped\)\].*/\1/p')
+  [ -z "$_st_mpc_state" ] && _st_mpc_state="stopped"
+  # audio: and bitrate: lines only appear when playing/paused; grep returns 1 on no match
+  _st_mpc_audio=$(echo "$_st_mpc" | grep -i 'audio:'   | sed 's/^[^:]*:[[:space:]]*//') || true
+  _st_mpc_br=$(echo    "$_st_mpc" | grep -i 'bitrate:' | sed 's/^[^:]*:[[:space:]]*//')  || true
+  _st_mpc_song=$(mpc current 2>/dev/null) || _st_mpc_song=""
+
+  printf "%-17s %s\n" "Geometry:"    "$GEOMETRY"
+  printf "%-17s %s\n" "DRC state:"   "$_st_drc"
+  if [ -n "$_st_voss_rate" ]; then
+    printf "%-17s running  %s Hz\n"  "virtual_oss:"  "$_st_voss_rate"
+  else
+    printf "%-17s not running\n"     "virtual_oss:"
+  fi
+  if [ -n "$_st_bf_rate" ]; then
+    printf "%-17s running  %s Hz%s\n" "brutefir:" \
+      "$_st_bf_rate" "${_st_bf_var:+  $_st_bf_var}"
+  else
+    printf "%-17s not running\n" "brutefir:"
+  fi
+  echo ""
+  printf "%-17s %s\n" "MPD:"         "$_st_mpc_state"
+  [ -n "$_st_mpc_song" ]  && printf "%-17s %s\n" "Song:"         "$_st_mpc_song"
+  [ -n "$_st_mpc_audio" ] && printf "%-17s %s\n" "Output audio:" "$_st_mpc_audio"
+  [ -n "$_st_mpc_br"    ] && printf "%-17s %s\n" "Bitrate:"      "$_st_mpc_br"
+
+  # Rate comparison: MPD output rate vs virtual_oss rate
+  if [ -n "$_st_voss_rate" ] && [ -n "$_st_mpc_audio" ]; then
+    _st_mpd_rate=$(echo "$_st_mpc_audio" | cut -d: -f1)
+    echo ""
+    if [ "$_st_mpd_rate" = "$_st_voss_rate" ]; then
+      printf "%-17s MPD %s Hz = virtual_oss %s Hz  [match]\n" \
+        "Rate:" "$_st_mpd_rate" "$_st_voss_rate"
+    else
+      printf "%-17s MPD %s Hz != virtual_oss %s Hz  [MISMATCH]\n" \
+        "Rate:" "$_st_mpd_rate" "$_st_voss_rate"
+    fi
+  fi
+  exit 0
 fi
 
 # ── argument parsing ──────────────────────────────────────────────────────────
