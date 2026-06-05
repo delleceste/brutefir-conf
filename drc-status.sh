@@ -12,7 +12,7 @@ configs=$(ps -ax -o args= 2>/dev/null \
     | sort -u)
 
 if [ -z "$configs" ]; then
-    echo "geometry=${GEOMETRY} off"
+    echo "${GEOMETRY} off"
     exit 0
 fi
 
