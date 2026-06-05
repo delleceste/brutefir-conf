@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Print the active brutefir config as "<position> <rate>" (e.g. 120.blue 192000), or 'off'.
+# Print the active brutefir config as "<geometry> <rate>" (e.g. 120.blue 192000), or 'off'.
 # Exits 1 and prints 'inconsistent' if multiple different configs are running.
+
+GEOMETRY="120.blue"   # speaker geometry / filter set to use — keep in sync with drc.sh
 
 # ps -ax -o args= works on both Linux and FreeBSD; grep with a char class
 # avoids matching the grep process itself.
@@ -10,7 +12,7 @@ configs=$(ps -ax -o args= 2>/dev/null \
     | sort -u)
 
 if [ -z "$configs" ]; then
-    echo off
+    echo "geometry=${GEOMETRY} off"
     exit 0
 fi
 

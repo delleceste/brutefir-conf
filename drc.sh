@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ── local configuration ───────────────────────────────────────────────────────
-POSITION="120.blue"   # speaker geometry / filter set to use
+GEOMETRY="120.blue"   # speaker geometry / filter set to use
 
 VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
 VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
@@ -30,8 +30,8 @@ usage() {
   echo "  off      : stop brutefir and DRC; enable direct DAC output"
   echo "  variant  : optional filter variant, e.g. +2dB (default: none)"
   echo
-  echo "  Position is fixed to: $POSITION"
-  echo "  Edit POSITION at the top of this script to change it."
+  echo "  Position is fixed to: $GEOMETRY"
+  echo "  Edit GEOMETRY at the top of this script to change it."
   echo
   echo "Examples:"
   echo "  $0 192000"
@@ -87,7 +87,7 @@ if [ "$mode" = "off" ]; then
 fi
 
 # ── validate config ──────────────────────────────────────────────────────────
-conf_file="$base_dir/configs/$POSITION/brutefir-${actual_rate}${variant}.conf"
+conf_file="$base_dir/configs/$GEOMETRY/brutefir-${actual_rate}${variant}.conf"
 if [ ! -f "$conf_file" ]; then
   echo "config not found: $conf_file"
   exit 1
@@ -116,7 +116,7 @@ mpc disable all
 mpc enable "$mpd_output"
 
 # ── record state ─────────────────────────────────────────────────────────────
-echo "${POSITION} ${rate}${variant:+ ${variant}}" > "$STATE_FILE"
+echo "${GEOMETRY} ${rate}${variant:+ ${variant}}" > "$STATE_FILE"
 chmod 644 "$STATE_FILE" 2>/dev/null || true
 
-echo "DRC active: position=${POSITION} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"
+echo "DRC active: position=${GEOMETRY} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"
