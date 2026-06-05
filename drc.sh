@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ── local configuration ───────────────────────────────────────────────────────
+POSITION="120.blue"   # speaker geometry / filter set to use
+
 VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
 VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
 
 usage() {
-  echo "Usage: $0 <position> <rate>|resamp|off [variant]"
-  echo "  position : speaker position, e.g. 120.blue or 185"
+  echo "Usage: $0 <rate>|resamp|off [variant]"
   echo "  rate     : 44100 | 48000 | 88200 | 96000 | 192000"
   echo "             native mode: select the rate matching the source track;"
   echo "             MPD uses DRC-native format *:*:* and does not resample"
@@ -14,22 +16,23 @@ usage() {
   echo "  off      : stop brutefir and DRC; enable direct DAC output"
   echo "  variant  : optional filter variant, e.g. +2dB (default: none)"
   echo
+  echo "  Position is fixed to: $POSITION"
+  echo "  Edit POSITION at the top of this script to change it."
+  echo
   echo "Examples:"
-  echo "  $0 120.blue 192000"
-  echo "  $0 120.blue 192000 +2dB"
-  echo "  $0 120.blue resamp"
+  echo "  $0 192000"
+  echo "  $0 192000 +2dB"
+  echo "  $0 resamp"
   echo "  $0 off"
 }
 
 if [ $# -eq 1 ] && [ "$1" = "off" ]; then
   mode="off"
-  position=""
   rate=""
   variant=""
-elif [ $# -eq 2 ] || [ $# -eq 3 ]; then
-  position="$1"
-  rate="$2"
-  variant="${3:-}"
+elif [ $# -eq 1 ] || [ $# -eq 2 ]; then
+  rate="$1"
+  variant="${2:-}"
   if [ "$rate" = "resamp" ]; then
     mode="resamp"
     actual_rate=192000
@@ -73,7 +76,7 @@ if [ "$mode" = "off" ]; then
 fi
 
 # ── validate config ──────────────────────────────────────────────────────────
-conf_file="$base_dir/configs/$position/brutefir-${actual_rate}${variant}.conf"
+conf_file="$base_dir/configs/$POSITION/brutefir-${actual_rate}${variant}.conf"
 if [ ! -f "$conf_file" ]; then
   echo "config not found: $conf_file"
   exit 1
@@ -106,7 +109,7 @@ mpc disable all
 mpc enable "$mpd_output"
 
 # ── record state ─────────────────────────────────────────────────────────────
-echo "${position} ${rate}${variant:+ ${variant}}" > "$STATE_FILE"
+echo "${POSITION} ${rate}${variant:+ ${variant}}" > "$STATE_FILE"
 chmod 644 "$STATE_FILE" 2>/dev/null || true
 
-echo "DRC active: position=${position} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"
+echo "DRC active: position=${POSITION} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"
