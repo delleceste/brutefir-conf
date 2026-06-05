@@ -113,7 +113,7 @@ echo "stopping virtual_oss"
 stop_virtual_oss
 echo "starting virtual_oss at ${actual_rate} Hz"
 # shellcheck disable=SC2086
-sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
+sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS
 sleep 1
 
 # ── start brutefir ───────────────────────────────────────────────────────────
