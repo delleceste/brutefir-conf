@@ -8,6 +8,8 @@ usage() {
   echo "Usage: $0 <position> <rate>|resamp|off [variant]"
   echo "  position : speaker position, e.g. 120.blue or 185"
   echo "  rate     : 44100 | 48000 | 88200 | 96000 | 192000"
+  echo "             native mode: select the rate matching the source track;"
+  echo "             MPD uses DRC-native format *:*:* and does not resample"
   echo "  resamp   : MPD resamples everything to 192000 Hz"
   echo "  off      : stop brutefir and DRC; enable direct DAC output"
   echo "  variant  : optional filter variant, e.g. +2dB (default: none)"
@@ -98,7 +100,7 @@ sleep 1
 if [ "$mode" = "resamp" ]; then
   mpd_output="DRC-resamp"
 else
-  mpd_output="DRC-${rate}"
+  mpd_output="DRC-native"
 fi
 mpc disable all
 mpc enable "$mpd_output"
