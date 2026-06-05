@@ -14,17 +14,19 @@ base_dir="$drc_root/$brutefir_conf_dir"
 STATE_FILE="$base_dir/last_arg"
 
 stop_virtual_oss() {
-  local was_running=0
-  # targeted kill via PID file (written by virtual_oss itself as root)
-  if [ -f "$VIRTUAL_OSS_PID" ]; then
-    sudo kill "$(sudo cat "$VIRTUAL_OSS_PID")" 2>/dev/null && was_running=1 || true
-    sudo rm -f "$VIRTUAL_OSS_PID"
-  fi
-  # catch any orphaned or duplicate instances not covered by the PID file
-  if sudo killall virtual_oss 2>/dev/null; then
-    was_running=1
-  fi
-  [ "$was_running" -eq 1 ] && sleep 1 || true
+  # SIGTERM via PID file + catch-all killall; then poll until actually gone
+  sudo kill "$(sudo cat "$VIRTUAL_OSS_PID" 2>/dev/null)" 2>/dev/null || true
+  sudo killall virtual_oss 2>/dev/null || true
+  sudo rm -f "$VIRTUAL_OSS_PID"
+  local i=0
+  while pgrep -q virtual_oss 2>/dev/null; do
+    if [ "$i" -ge 10 ]; then
+      sudo killall -KILL virtual_oss 2>/dev/null || true
+      break
+    fi
+    sleep 0.3
+    i=$((i + 1))
+  done
 }
 
 usage() {
