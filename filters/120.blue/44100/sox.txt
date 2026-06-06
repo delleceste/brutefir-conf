@@ -1,11 +1,11 @@
 REW2raw all-rates conversion log
-Date: 2026-06-05T13:44:40+02:00
+Date: 2026-06-06T16:56:06+02:00
 Rate: 44100
-Output directory: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100
+Output directory: ./44100
 [34mLeft input: rew/FLX-trimmed-48k.wav (48000 Hz)[0m
 [31mRight input: rew/FRX-trimmed-48k.wav (48000 Hz)[0m
-[34mLeft output: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw[0m
-[31mRight output: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw[0m
+[34mLeft output: ./44100/L.raw[0m
+[31mRight output: ./44100/R.raw[0m
 
 Quality flags:
   SoX rate -v -L -s
@@ -22,10 +22,10 @@ FIR scaling theory:
 [31m  RIGHT scale=48000/44100 (1.0884353741), applied sample-rate gain=0.73605296 dB[0m
 
 [34m== Left channel ==[0m
-[34m+ NO_COLOR=1 /home/giacomo/devel/brutefir-conf/scripts/REW2raw.sh --exact-output --no-keep-intermediate rew/FLX-trimmed-48k.wav /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw raw 44100[0m
+[34m+ NO_COLOR=1 /home/giacomo/DRC/brutefir-conf/scripts/REW2raw.sh --exact-output --no-keep-intermediate rew/FLX-trimmed-48k.wav ./44100/L.raw raw 44100[0m
 [34mInput file: rew/FLX-trimmed-48k.wav[0m
-[34mIntermediate WAV (temporary): /tmp/rew2raw.IVrhVQ/FLX-trimmed-48k_sox_upsample_float64.wav[0m
-[34mFinal output (will be written): /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw[0m
+[34mIntermediate WAV (temporary): /tmp/rew2raw.9KGkA0/FLX-trimmed-48k_sox_upsample_float64.wav[0m
+[34mFinal output (will be written): ./44100/L.raw[0m
 [34mInput sample rate: 48000 Hz[0m
 [34mTarget sample rate: 44100 Hz[0m
 [34m[0m
@@ -51,11 +51,11 @@ FIR scaling theory:
 [34mInput absolute peak: 0.522944[0m
 [34m[0m
 [34mResampling to 44100 Hz into intermediate WAV (64-bit float)...[0m
-[34m+ sox rew/FLX-trimmed-48k.wav -b 64 -e floating-point /tmp/rew2raw.IVrhVQ/FLX-trimmed-48k_sox_upsample_float64.wav rate -v -L -s 44100[0m
+[34m+ sox rew/FLX-trimmed-48k.wav -b 64 -e floating-point /tmp/rew2raw.9KGkA0/FLX-trimmed-48k_sox_upsample_float64.wav rate -v -L -s 44100[0m
 [34m[0m
 [34mResampled file stats (before FIR gain):[0m
-[34mSoX stat for: /tmp/rew2raw.IVrhVQ/FLX-trimmed-48k_sox_upsample_float64.wav[0m
-[34m+ sox /tmp/rew2raw.IVrhVQ/FLX-trimmed-48k_sox_upsample_float64.wav -n stat[0m
+[34mSoX stat for: /tmp/rew2raw.9KGkA0/FLX-trimmed-48k_sox_upsample_float64.wav[0m
+[34m+ sox /tmp/rew2raw.9KGkA0/FLX-trimmed-48k_sox_upsample_float64.wav -n stat[0m
 [34mSamples read:            120422[0m
 [34mLength (seconds):      2.730658[0m
 [34mScaled by:         2147483647.0[0m
@@ -77,11 +77,11 @@ FIR scaling theory:
 [34mFIR coefficient scale: 48000/44100[0m
 [34mApplied sample-rate gain: 0.73605296 dB[0m
 [34m[0m
-[34m+ sox /tmp/rew2raw.IVrhVQ/FLX-trimmed-48k_sox_upsample_float64.wav -L -t raw -e floating-point -b 64 /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw gain 0.73605296[0m
-[34mFinal RAW float64 written: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw[0m
+[34m+ sox /tmp/rew2raw.9KGkA0/FLX-trimmed-48k_sox_upsample_float64.wav -L -t raw -e floating-point -b 64 ./44100/L.raw gain 0.73605296[0m
+[34mFinal RAW float64 written: ./44100/L.raw[0m
 [34m[0m
 [34mFinal file stats (after FIR gain):[0m
-[34m+ sox -t raw -r 44100 -e floating-point -b 64 -L -c 1 /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw -n stats[0m
+[34m+ sox -t raw -r 44100 -e floating-point -b 64 -L -c 1 ./44100/L.raw -n stats[0m
 DC offset   0.000008
 Min level  -0.469921
 Max level   0.465672
@@ -104,14 +104,14 @@ Window s       0.050
 [34mResampled absolute peak before FIR gain: 0.43174[0m
 [34mApplied sample-rate gain: 0.73605296 dB[0m
 [34mIntermediate WAV removed after conversion.[0m
-[34mOUTPUT: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/L.raw[0m
+[34mOUTPUT: ./44100/L.raw[0m
 [34m[0m
 
 [31m== Right channel ==[0m
-[31m+ NO_COLOR=1 /home/giacomo/devel/brutefir-conf/scripts/REW2raw.sh --exact-output --no-keep-intermediate rew/FRX-trimmed-48k.wav /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw raw 44100[0m
+[31m+ NO_COLOR=1 /home/giacomo/DRC/brutefir-conf/scripts/REW2raw.sh --exact-output --no-keep-intermediate rew/FRX-trimmed-48k.wav ./44100/R.raw raw 44100[0m
 [31mInput file: rew/FRX-trimmed-48k.wav[0m
-[31mIntermediate WAV (temporary): /tmp/rew2raw.qhqzuM/FRX-trimmed-48k_sox_upsample_float64.wav[0m
-[31mFinal output (will be written): /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw[0m
+[31mIntermediate WAV (temporary): /tmp/rew2raw.p9oEW4/FRX-trimmed-48k_sox_upsample_float64.wav[0m
+[31mFinal output (will be written): ./44100/R.raw[0m
 [31mInput sample rate: 48000 Hz[0m
 [31mTarget sample rate: 44100 Hz[0m
 [31m[0m
@@ -137,11 +137,11 @@ Window s       0.050
 [31mInput absolute peak: 0.739373[0m
 [31m[0m
 [31mResampling to 44100 Hz into intermediate WAV (64-bit float)...[0m
-[31m+ sox rew/FRX-trimmed-48k.wav -b 64 -e floating-point /tmp/rew2raw.qhqzuM/FRX-trimmed-48k_sox_upsample_float64.wav rate -v -L -s 44100[0m
+[31m+ sox rew/FRX-trimmed-48k.wav -b 64 -e floating-point /tmp/rew2raw.p9oEW4/FRX-trimmed-48k_sox_upsample_float64.wav rate -v -L -s 44100[0m
 [31m[0m
 [31mResampled file stats (before FIR gain):[0m
-[31mSoX stat for: /tmp/rew2raw.qhqzuM/FRX-trimmed-48k_sox_upsample_float64.wav[0m
-[31m+ sox /tmp/rew2raw.qhqzuM/FRX-trimmed-48k_sox_upsample_float64.wav -n stat[0m
+[31mSoX stat for: /tmp/rew2raw.p9oEW4/FRX-trimmed-48k_sox_upsample_float64.wav[0m
+[31m+ sox /tmp/rew2raw.p9oEW4/FRX-trimmed-48k_sox_upsample_float64.wav -n stat[0m
 [31mSamples read:            120422[0m
 [31mLength (seconds):      2.730658[0m
 [31mScaled by:         2147483647.0[0m
@@ -163,11 +163,11 @@ Window s       0.050
 [31mFIR coefficient scale: 48000/44100[0m
 [31mApplied sample-rate gain: 0.73605296 dB[0m
 [31m[0m
-[31m+ sox /tmp/rew2raw.qhqzuM/FRX-trimmed-48k_sox_upsample_float64.wav -L -t raw -e floating-point -b 64 /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw gain 0.73605296[0m
-[31mFinal RAW float64 written: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw[0m
+[31m+ sox /tmp/rew2raw.p9oEW4/FRX-trimmed-48k_sox_upsample_float64.wav -L -t raw -e floating-point -b 64 ./44100/R.raw gain 0.73605296[0m
+[31mFinal RAW float64 written: ./44100/R.raw[0m
 [31m[0m
 [31mFinal file stats (after FIR gain):[0m
-[31m+ sox -t raw -r 44100 -e floating-point -b 64 -L -c 1 /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw -n stats[0m
+[31m+ sox -t raw -r 44100 -e floating-point -b 64 -L -c 1 ./44100/R.raw -n stats[0m
 DC offset   0.000008
 Min level  -0.726060
 Max level   0.331780
@@ -190,5 +190,5 @@ Window s       0.050
 [31mResampled absolute peak before FIR gain: 0.667068[0m
 [31mApplied sample-rate gain: 0.73605296 dB[0m
 [31mIntermediate WAV removed after conversion.[0m
-[31mOUTPUT: /home/giacomo/devel/brutefir-conf/filters/120.blue/44100/R.raw[0m
+[31mOUTPUT: ./44100/R.raw[0m
 [31m[0m
