@@ -1,0 +1,12 @@
+--- a/sys/modules/sound/driver/uaudio/Makefile	2026-06-06 15:15:24.671520000 +0200
++++ b/sys/modules/sound/driver/uaudio/Makefile	2026-06-06 15:16:18.553648000 +0200
+@@ -5,4 +5,9 @@
+ SRCS+=	opt_usb.h opt_bus.h feeder_if.h channel_if.h usbdevs.h
+ SRCS+=	uaudio_pcm.c uaudio.c
+ 
++# Local: enable uaudio DPRINTF tracing + the hw.usb.uaudio.debug sysctl.
++# GENERIC enables "options USB_DEBUG"; a standalone module build does not, so
++# add it explicitly here.
++CFLAGS+=	-DUSB_DEBUG
++
+ .include <bsd.kmod.mk>
