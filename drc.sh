@@ -272,11 +272,17 @@ fi
 
 # ── off: re-enable direct DAC, stop virtual_oss ──────────────────────────────
 if [ "$mode" = "off" ]; then
-  mpc enable only 1
+  # Tear down the DRC chain first so /dev/dsp0 is free before the direct
+  # output opens it (the DAC is single-open: vchans off / bit-perfect).
   if ! $IS_LINUX; then
     echo "stopping virtual_oss"
     stop_virtual_oss
   fi
+  # Enable ONLY the direct DAC output — this disables every other output.
+  # NB: mpc has no "disable all" keyword (it errors "all: no such output");
+  # "enable only <name>" is the correct idiom: it enables the named output
+  # and disables all others atomically.
+  mpc enable only "OKTO-DAC"
   echo "off" > "$STATE_FILE"
   chmod 644 "$STATE_FILE" 2>/dev/null || true
   echo "DRC stopped"
@@ -311,8 +317,9 @@ if [ "$mode" = "resamp" ]; then
 else
   mpd_output="DRC-native"
 fi
-mpc disable all
-mpc enable "$mpd_output"
+# Enable ONLY the selected DRC output (disables the direct + the other DRC
+# output). "mpc disable all" is not valid in mpc — use "enable only <name>".
+mpc enable only "$mpd_output"
 
 # ── record state ─────────────────────────────────────────────────────────────
 state_args="${rate}${variant:+ ${variant}}"
