@@ -7,6 +7,9 @@ GEOMETRY="120.blue"   # speaker geometry / filter set to use
 VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
 VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
 
+IS_LINUX=false
+[ "$(uname)" = "Linux" ] && IS_LINUX=true
+
 # ── paths ─────────────────────────────────────────────────────────────────────
 drc_root="/home/giacomo/DRC"
 brutefir_conf_dir="brutefir-conf"
@@ -16,6 +19,69 @@ STATE_FILE="$base_dir/last_arg"
 # Skip sudo when already root (service files run as root); avoids the sudo
 # parent+monitor process tree that results in multiple processes in ps.
 _sudo() { [ "$(id -u)" -eq 0 ] && "$@" || sudo "$@"; }
+
+state_to_args() {
+  local state="$1"
+  case "$state" in
+    ""|"off")
+      printf '%s\n' "${state:-off}"
+      return
+      ;;
+  esac
+
+  # Backward compatibility: older last_arg files stored "GEOMETRY rate [variant]".
+  set -- $state
+  if [ "${1:-}" != "resamp" ] && ! [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+    shift
+  fi
+
+  if [ "$#" -eq 0 ]; then
+    printf 'off\n'
+    return
+  fi
+
+  printf '%s' "$1"
+  shift
+  if [ "$#" -gt 0 ]; then
+    printf ' %s' "$@"
+  fi
+  printf '\n'
+}
+
+format_rate() {
+  case "$1" in
+    44100)  printf '44.1 kHz\n' ;;
+    48000)  printf '48 kHz\n' ;;
+    88200)  printf '88.2 kHz\n' ;;
+    96000)  printf '96 kHz\n' ;;
+    192000) printf '192 kHz\n' ;;
+    *)      printf '%s Hz\n' "$1" ;;
+  esac
+}
+
+state_label() {
+  local state mode variant profile
+  state=$(state_to_args "$1")
+  case "$state" in
+    ""|"off")
+      printf 'off\n'
+      return
+      ;;
+  esac
+
+  set -- $state
+  mode="${1:-}"
+  variant="${2:-}"
+  profile="${variant:-Flat}"
+
+  if [ "$mode" = "resamp" ]; then
+    printf '%s auto-resample\n' "$profile"
+  elif [[ "$mode" =~ ^[0-9]+$ ]]; then
+    printf '%s %s\n' "$profile" "$(format_rate "$mode")"
+  else
+    printf '%s\n' "$state"
+  fi
+}
 
 stop_virtual_oss() {
   local pid
@@ -62,15 +128,14 @@ usage() {
 if [ $# -eq 1 ] && [ "$1" = "restore" ]; then
   state=""
   [ -f "$STATE_FILE" ] && state=$(cat "$STATE_FILE")
-  case "$state" in
+  args=$(state_to_args "$state")
+  case "$args" in
     off|"")
       echo "No previous active state — starting at default 192000 Hz"
       exec "$0" 192000
       ;;
     *)
-      # state is "GEOMETRY RATE [VARIANT]" — strip the geometry prefix
-      args="${state#* }"
-      echo "Restoring last state: $state"
+      echo "Restoring last state: $(state_label "$args")"
       # shellcheck disable=SC2086
       exec "$0" $args
       ;;
@@ -80,11 +145,22 @@ fi
 # ── status: show DRC state, virtual_oss rate, brutefir, and MPD output ───────
 if [ $# -eq 1 ] && [ "$1" = "status" ]; then
   _st_drc="off"
-  [ -f "$STATE_FILE" ] && _st_drc=$(cat "$STATE_FILE")
+  [ -f "$STATE_FILE" ] && _st_drc=$(state_to_args "$(cat "$STATE_FILE")")
 
   # virtual_oss: find the -r argument in the running process command line
-  _st_voss_rate=$(ps -ax -o args= 2>/dev/null \
-    | awk '($1=="virtual_oss" || $1~/\/virtual_oss$/) && /-r/ {for(i=1;i<=NF;i++) if($i=="-r"){print $(i+1); exit}}')
+  _st_voss_rate=""
+  if ! $IS_LINUX; then
+    _st_voss_rate=$(ps -ax -o args= 2>/dev/null \
+      | awk '($1=="virtual_oss" || $1~/\/virtual_oss$/) && /-r/ {for(i=1;i<=NF;i++) if($i=="-r"){print $(i+1); exit}}')
+  fi
+
+  # Linux: sample rate of the active ALSA playback stream (DAC output)
+  # hw_params says "closed" when idle; when open the rate line is "rate: N (N/1)"
+  _st_alsa_rate=""
+  if $IS_LINUX; then
+    _st_alsa_rate=$(awk 'FNR==1 && /^closed$/{nextfile} /^rate:/{print $2; exit}' \
+      /proc/asound/card*/pcm*p/sub*/hw_params 2>/dev/null | head -1)
+  fi
 
   # brutefir: extract rate and optional variant from the running conf path
   _st_bf_args=$(ps -ax -o args= 2>/dev/null | awk '($1=="brutefir" || $1~/\/brutefir$/) && /\.conf/{print; exit}')
@@ -102,8 +178,14 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
   _st_mpc_song=$(mpc current 2>/dev/null) || _st_mpc_song=""
 
   printf "%-17s %s\n" "Geometry:"    "$GEOMETRY"
-  printf "%-17s %s\n" "DRC state:"   "$_st_drc"
-  if [ -n "$_st_voss_rate" ]; then
+  printf "%-17s %s\n" "Active config:" "$(state_label "$_st_drc")"
+  if $IS_LINUX; then
+    if [ -n "$_st_alsa_rate" ]; then
+      printf "%-17s running  %s Hz\n" "ALSA:"  "$_st_alsa_rate"
+    else
+      printf "%-17s not running\n"    "ALSA:"
+    fi
+  elif [ -n "$_st_voss_rate" ]; then
     printf "%-17s running  %s Hz\n"  "virtual_oss:"  "$_st_voss_rate"
   else
     printf "%-17s not running\n"     "virtual_oss:"
@@ -120,8 +202,20 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
   [ -n "$_st_mpc_audio" ] && printf "%-17s %s\n" "Output audio:" "$_st_mpc_audio"
   [ -n "$_st_mpc_br"    ] && printf "%-17s %s\n" "Bitrate:"      "$_st_mpc_br"
 
-  # Rate comparison: MPD output rate vs virtual_oss rate
-  if [ -n "$_st_voss_rate" ] && [ -n "$_st_mpc_audio" ]; then
+  # Rate comparison: MPD output rate vs audio sink rate
+  if $IS_LINUX; then
+    if [ -n "$_st_alsa_rate" ] && [ -n "$_st_mpc_audio" ]; then
+      _st_mpd_rate=$(echo "$_st_mpc_audio" | cut -d: -f1)
+      echo ""
+      if [ "$_st_mpd_rate" = "$_st_alsa_rate" ]; then
+        printf "%-17s MPD %s Hz = ALSA %s Hz  [match]\n" \
+          "Rate:" "$_st_mpd_rate" "$_st_alsa_rate"
+      else
+        printf "%-17s MPD %s Hz != ALSA %s Hz  [MISMATCH]\n" \
+          "Rate:" "$_st_mpd_rate" "$_st_alsa_rate"
+      fi
+    fi
+  elif [ -n "$_st_voss_rate" ] && [ -n "$_st_mpc_audio" ]; then
     _st_mpd_rate=$(echo "$_st_mpc_audio" | cut -d: -f1)
     echo ""
     if [ "$_st_mpd_rate" = "$_st_voss_rate" ]; then
@@ -169,8 +263,10 @@ fi
 # ── off: re-enable direct DAC, stop virtual_oss ──────────────────────────────
 if [ "$mode" = "off" ]; then
   mpc enable only 1
-  echo "stopping virtual_oss"
-  stop_virtual_oss
+  if ! $IS_LINUX; then
+    echo "stopping virtual_oss"
+    stop_virtual_oss
+  fi
   echo "off" > "$STATE_FILE"
   chmod 644 "$STATE_FILE" 2>/dev/null || true
   echo "DRC stopped"
@@ -185,12 +281,14 @@ if [ ! -f "$conf_file" ]; then
 fi
 
 # ── restart virtual_oss at the required sample rate ──────────────────────────
-echo "stopping virtual_oss"
-stop_virtual_oss
-echo "starting virtual_oss at ${actual_rate} Hz"
-# shellcheck disable=SC2086
-_sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
-sleep 1
+if ! $IS_LINUX; then
+  echo "stopping virtual_oss"
+  stop_virtual_oss
+  echo "starting virtual_oss at ${actual_rate} Hz"
+  # shellcheck disable=SC2086
+  _sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
+  sleep 1
+fi
 
 # ── start brutefir ───────────────────────────────────────────────────────────
 echo "starting brutefir: $conf_file"
@@ -207,7 +305,8 @@ mpc disable all
 mpc enable "$mpd_output"
 
 # ── record state ─────────────────────────────────────────────────────────────
-echo "${GEOMETRY} ${rate}${variant:+ ${variant}}" > "$STATE_FILE"
+state_args="${rate}${variant:+ ${variant}}"
+echo "$state_args" > "$STATE_FILE"
 chmod 644 "$STATE_FILE" 2>/dev/null || true
 
-echo "DRC active: geometry=${GEOMETRY} rate=${rate}${variant:+ variant=${variant}} (MPD output: ${mpd_output})"
+echo "DRC active: $(state_label "$state_args") (MPD output: ${mpd_output})"

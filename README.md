@@ -168,7 +168,10 @@ Signature: `drc.sh <rate>|resamp|restore|off [variant]`
 - `variant` — optional second argument, e.g. `+2dB`, selects an alternate filter set
 
 State is saved to `last_arg` on each successful invocation so `restore` can recover it.
-Geometry (speaker position) is hardcoded at the top of the script (`GEOMETRY="120.blue"`).
+The saved state contains only the active mode and optional variant, for example
+`192000`, `resamp`, or `192000 +2dB`; geometry is not part of the active config
+state. Geometry (speaker position) is hardcoded at the top of the script
+(`GEOMETRY="120.blue"`).
 
 ## MPD native DRC output format
 
@@ -185,7 +188,10 @@ requires selecting the `drc.sh` rate that matches the source track, while MPD
 passes the source format through unchanged.
 
 The separate `DRC-resamp` output keeps `format "192000:24:2"` because that mode
-explicitly asks MPD to resample everything to 192 kHz.
+explicitly asks MPD to resample everything to 192 kHz. `drc.sh 192000` and
+`drc.sh resamp` both use the 192 kHz BruteFIR config, but they are distinct
+active configs: native 192 kHz playback is shown as `Flat 192 kHz`, while the
+MPD-forced resampling path is shown as `Flat auto-resample`.
 
 # The doc/ directory
 It shall contain at least two plots (PNG format), each one with two curves: uncorrected and corrected:
