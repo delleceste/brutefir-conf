@@ -154,12 +154,19 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
       | awk '($1=="virtual_oss" || $1~/\/virtual_oss$/) && /-r/ {for(i=1;i<=NF;i++) if($i=="-r"){print $(i+1); exit}}')
   fi
 
-  # Linux: sample rate of the active ALSA playback stream (DAC output)
-  # hw_params says "closed" when idle; when open the rate line is "rate: N (N/1)"
+  # Linux: sample rate of the active ALSA playback stream (DAC output).
+  # hw_params says "closed" when the stream is idle.
+  # Avoid nextfile (gawk-only); read each file individually instead.
   _st_alsa_rate=""
   if $IS_LINUX; then
-    _st_alsa_rate=$(awk 'FNR==1 && /^closed$/{nextfile} /^rate:/{print $2; exit}' \
-      /proc/asound/card*/pcm*p/sub*/hw_params 2>/dev/null | head -1)
+    for _f in /proc/asound/card*/pcm*p/sub*/hw_params; do
+      [ -f "$_f" ] || continue
+      read -r _first < "$_f" 2>/dev/null || continue
+      [ "$_first" = "closed" ] && continue
+      _st_alsa_rate=$(awk '/^rate:/{print $2; exit}' "$_f")
+      [ -n "$_st_alsa_rate" ] && break
+    done
+    unset _f _first
   fi
 
   # brutefir: extract rate and optional variant from the running conf path
@@ -202,17 +209,20 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
   [ -n "$_st_mpc_audio" ] && printf "%-17s %s\n" "Output audio:" "$_st_mpc_audio"
   [ -n "$_st_mpc_br"    ] && printf "%-17s %s\n" "Bitrate:"      "$_st_mpc_br"
 
-  # Rate comparison: MPD output rate vs audio sink rate
+  # Rate comparison: MPD output rate vs audio sink rate.
+  # Linux: compare against brutefir conf rate (always available when bf runs);
+  # ALSA hw rate is shown as a bonus suffix when it can be detected.
   if $IS_LINUX; then
-    if [ -n "$_st_alsa_rate" ] && [ -n "$_st_mpc_audio" ]; then
+    if [ -n "$_st_bf_rate" ] && [ -n "$_st_mpc_audio" ]; then
       _st_mpd_rate=$(echo "$_st_mpc_audio" | cut -d: -f1)
+      _st_alsa_suffix=${_st_alsa_rate:+  [ALSA: ${_st_alsa_rate} Hz]}
       echo ""
-      if [ "$_st_mpd_rate" = "$_st_alsa_rate" ]; then
-        printf "%-17s MPD %s Hz = ALSA %s Hz  [match]\n" \
-          "Rate:" "$_st_mpd_rate" "$_st_alsa_rate"
+      if [ "$_st_mpd_rate" = "$_st_bf_rate" ]; then
+        printf "%-17s MPD %s Hz = brutefir %s Hz  [match]%s\n" \
+          "Rate:" "$_st_mpd_rate" "$_st_bf_rate" "$_st_alsa_suffix"
       else
-        printf "%-17s MPD %s Hz != ALSA %s Hz  [MISMATCH]\n" \
-          "Rate:" "$_st_mpd_rate" "$_st_alsa_rate"
+        printf "%-17s MPD %s Hz != brutefir %s Hz  [MISMATCH]%s\n" \
+          "Rate:" "$_st_mpd_rate" "$_st_bf_rate" "$_st_alsa_suffix"
       fi
     fi
   elif [ -n "$_st_voss_rate" ] && [ -n "$_st_mpc_audio" ]; then
