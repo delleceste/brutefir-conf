@@ -184,6 +184,9 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
   _st_mpc_br=$(echo    "$_st_mpc" | grep -i 'bitrate:' | sed 's/^[^:]*:[[:space:]]*//')  || true
   _st_mpc_song=$(mpc current 2>/dev/null) || _st_mpc_song=""
 
+  # Active config reflects what is actually processing now, not STATE_FILE
+  [ -z "$_st_bf_rate" ] && _st_drc="off"
+
   printf "%-17s %s\n" "Geometry:"    "$GEOMETRY"
   printf "%-17s %s\n" "Active config:" "$(state_label "$_st_drc")"
   if $IS_LINUX; then
@@ -283,8 +286,6 @@ if [ "$mode" = "off" ]; then
   # "enable only <name>" is the correct idiom: it enables the named output
   # and disables all others atomically.
   mpc enable only "OKTO-DAC"
-  echo "off" > "$STATE_FILE"
-  chmod 644 "$STATE_FILE" 2>/dev/null || true
   echo "DRC stopped"
   exit 0
 fi
