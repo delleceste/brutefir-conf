@@ -83,6 +83,20 @@ state_label() {
   fi
 }
 
+# Map a saved state string to the actual brutefir/DAC sample rate, or "" for
+# off/unknown.  Used to detect a rate change (which needs the OKTO DAC prime).
+state_to_rate() {
+  local s
+  s=$(state_to_args "$1")
+  # shellcheck disable=SC2086
+  set -- $s
+  case "${1:-}" in
+    resamp) printf '192000\n' ;;
+    [0-9]*) printf '%s\n' "$1" ;;
+    *)      printf '\n' ;;
+  esac
+}
+
 stop_virtual_oss() {
   local pid
   pid=$(_sudo cat "$VIRTUAL_OSS_PID" 2>/dev/null) && _sudo kill "$pid" 2>/dev/null || true
@@ -259,16 +273,77 @@ else
   exit 1
 fi
 
+# Detect a sample-rate change.  The OKTO DAC stays silent on the first stream
+# opened at a new rate (it shows "play" and provides USB feedback but routes no
+# audio); a second open at the same rate fixes it.  When the rate changes we
+# prime the DAC below so a single drc.sh run no longer has to be issued twice.
+prev_rate=""
+[ -f "$STATE_FILE" ] && prev_rate=$(state_to_rate "$(cat "$STATE_FILE")")
+prime=""
+if [ "$mode" != "off" ] && [ "$prev_rate" != "$actual_rate" ]; then
+  prime=1
+fi
+
 process_name="brutefir"
 
+stop_brutefir() {
+  if pgrep -x "$process_name" > /dev/null 2>&1; then
+    echo "stopping brutefir"
+    killall "$process_name" 2>/dev/null || true
+    # Wait for the process to actually exit so it releases the DAC
+    # (/dev/dsp0) and the loopback before we restart.  A bare "sleep 1"
+    # is not enough when the (USB) DAC is slow to release — that race is
+    # what made the new brutefir silently fail to open the device on the
+    # first run.  Escalate to SIGKILL after ~5 s.
+    local i=0
+    while pgrep -x "$process_name" > /dev/null 2>&1; do
+      if [ "$i" -ge 25 ]; then
+        killall -KILL "$process_name" 2>/dev/null || true
+        sleep 0.5
+        break
+      fi
+      sleep 0.2
+      i=$((i + 1))
+    done
+  else
+    echo "brutefir not running"
+  fi
+}
+
+start_brutefir() {
+  local attempt i
+  for attempt in 1 2 3; do
+    echo "starting brutefir (attempt $attempt): $conf_file"
+    brutefir "$conf_file" -daemon > /tmp/brutefir.out 2>&1 || true
+    # brutefir -daemon forks and the parent returns 0 immediately, before
+    # the daemon has opened the audio devices.  Poll until the daemon shows
+    # up, then confirm it *stays* up — it exits a moment later if it cannot
+    # open the DAC / loopback.  This is the verification that was missing.
+    i=0
+    while [ "$i" -lt 10 ]; do
+      sleep 0.3
+      if pgrep -x "$process_name" > /dev/null 2>&1; then
+        break
+      fi
+      i=$((i + 1))
+    done
+    if pgrep -x "$process_name" > /dev/null 2>&1; then
+      sleep 0.5
+      if pgrep -x "$process_name" > /dev/null 2>&1; then
+        echo "brutefir running"
+        return 0
+      fi
+    fi
+    echo "brutefir did not stay up; last output:"
+    tail -n 5 /tmp/brutefir.out 2>/dev/null | sed 's/^/  /' || true
+    killall "$process_name" 2>/dev/null || true
+    sleep 1
+  done
+  return 1
+}
+
 # ── stop brutefir ────────────────────────────────────────────────────────────
-if pgrep "$process_name" > /dev/null; then
-  echo "stopping brutefir"
-  killall "$process_name"
-  sleep 1
-else
-  echo "brutefir not running"
-fi
+stop_brutefir
 
 # ── off: re-enable direct DAC, stop virtual_oss ──────────────────────────────
 if [ "$mode" = "off" ]; then
@@ -296,6 +371,23 @@ if [ ! -f "$conf_file" ]; then
   exit 1
 fi
 
+# ── free the audio devices before rebuilding the chain ───────────────────────
+# brutefir opens /dev/dsp0 (the single-open DAC); MPD's direct output holds it
+# while playing, and the DRC outputs hold /dev/dsp.play.  Disable all MPD
+# outputs now so brutefir is guaranteed a free DAC and virtual_oss a free
+# loopback — then re-enable the right one once the chain is confirmed up.
+# Disabling first also forces the later "enable only" to genuinely reopen the
+# output instead of being a no-op on an already-enabled (but stale) output.
+mpc disable "OKTO-DAC"   2>/dev/null || true
+mpc disable "DRC-native" 2>/dev/null || true
+mpc disable "DRC-resamp" 2>/dev/null || true
+# "mpc disable" returns before MPD's player thread has actually closed the
+# device; give it a moment so MPD releases /dev/dsp.play (and the DAC) before
+# we tear down virtual_oss underneath it.  Yanking the backend out from under
+# an open MPD output is what produced "exception: Failed to open audio output"
+# and forced a second run.
+sleep 0.5
+
 # ── restart virtual_oss at the required sample rate ──────────────────────────
 if ! $IS_LINUX; then
   echo "stopping virtual_oss"
@@ -303,13 +395,38 @@ if ! $IS_LINUX; then
   echo "starting virtual_oss at ${actual_rate} Hz"
   # shellcheck disable=SC2086
   _sudo virtual_oss -D "$VIRTUAL_OSS_PID" -r "$actual_rate" $VIRTUAL_OSS_ARGS &
-  sleep 1
+  # Wait until virtual_oss is actually up and the loopback node exists;
+  # brutefir's input opens /dev/dsp.loop and fails outright if it is not
+  # ready yet.  Fall back after ~5 s rather than blocking forever.
+  _vo=0
+  while [ "$_vo" -lt 25 ]; do
+    if pgrep -q virtual_oss 2>/dev/null && [ -e /dev/dsp.loop ]; then
+      break
+    fi
+    sleep 0.2
+    _vo=$((_vo + 1))
+  done
 fi
 
-# ── start brutefir ───────────────────────────────────────────────────────────
-echo "starting brutefir: $conf_file"
-brutefir "$conf_file" -daemon > /tmp/brutefir.out 2>&1
-sleep 1
+# ── prime the OKTO DAC on a rate change ──────────────────────────────────────
+# The DAC routes silence on the first open at a new rate, so open brutefir once
+# at the new rate, tear it back down, then fall through to the real start.  The
+# real (final) open is then the "second" open at the same rate the DAC needs to
+# actually output — automating what used to require running drc.sh twice.
+if [ -n "$prime" ]; then
+  echo "priming DAC at ${actual_rate} Hz (rate changed from ${prev_rate:-off})"
+  if start_brutefir; then
+    sleep 1
+    stop_brutefir
+    sleep 0.5
+  fi
+fi
+
+# ── start brutefir (verified, with retry) ────────────────────────────────────
+if ! start_brutefir; then
+  echo "ERROR: brutefir failed to start after 3 attempts (see /tmp/brutefir.out)" >&2
+  exit 1
+fi
 
 # ── enable the matching MPD output ───────────────────────────────────────────
 if [ "$mode" = "resamp" ]; then
