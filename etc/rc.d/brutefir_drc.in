@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # PROVIDE: brutefir_drc
-# REQUIRE: DAEMON
+# REQUIRE: musicpd
 # KEYWORD: shutdown
 #
 # Template — generated to brutefir_drc by install.sh from config.env.
