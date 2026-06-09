@@ -1,0 +1,3 @@
+[submodule "omdrc-ctrl"]
+	path = omdrc-ctrl
+	url = https://github.com/delleceste/omdrc-ctrl.git

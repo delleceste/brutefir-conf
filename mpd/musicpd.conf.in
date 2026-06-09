@@ -2,16 +2,21 @@
 #
 #  FreeBSD specific musicpd.conf (uses /dev/dsp0)
 #
+#  Template — generated to musicpd.conf by ../install.sh from ../config.env.
+#  Do not edit the generated file; edit this .in or config.env.
 #
 
 follow_inside_symlinks  "yes"
-db_file         "/var/mpd/mpd.db"
-log_file        "/var/mpd/mpd.log"
-pid_file        "/var/mpd/pid"
-music_directory         "/media/USBHD2/musica"
-# playlist_directory      "/var/mpd/playlists"
-state_file      "/var/mpd/mpdstate"
-user    "mpd"
+# State lives under the audio user's home (the run-from-repo model): /var/mpd is
+# owned by the mpd daemon user and not writable by @AUDIO_USER@.  Create with:
+#   mkdir -p ~/.local/share/mpd ~/.cache/mpd
+db_file         "@AUDIO_HOME@/.local/share/mpd/mpd.db"
+log_file        "@AUDIO_HOME@/.local/share/mpd/mpd.log"
+pid_file        "@AUDIO_HOME@/.cache/mpd/pid"
+music_directory         "@MUSIC_DIR@"
+# playlist_directory      "@AUDIO_HOME@/.local/share/mpd/playlists"
+state_file      "@AUDIO_HOME@/.local/share/mpd/mpdstate"
+user    "@AUDIO_USER@"
 bind_to_address         "0.0.0.0"
 port    "6600"
 log_level       "default"
@@ -20,7 +25,7 @@ audio_buffer_size       "16384"
 filesystem_charset      "UTF-8"
 auto_update     "no"
 mixer_type      "disabled"
-group   "mpd"
+group   "@AUDIO_USER@"
 max_connections "20"
 restore_paused "yes"
 

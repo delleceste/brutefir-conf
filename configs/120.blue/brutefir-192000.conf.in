@@ -3,15 +3,15 @@ logic: "cli" { port: 3000; };
 sampling_rate: 192000;
 
 coeff "c-l" {
-	filename: "/home/giacomo/DRC/brutefir-conf/filters/120.blue/192000/+2dB/L.raw";
+	filename: "@REPO_DIR@/filters/120.blue/192000/L.raw";
 	format: "FLOAT64_LE";
-	attenuation: 8.0;
+	attenuation: 3.0;
 };
 
 coeff "c-r" {
-	filename: "/home/giacomo/DRC/brutefir-conf/filters/120.blue/192000/+2dB/R.raw";
+	filename: "@REPO_DIR@/filters/120.blue/192000/R.raw";
 	format: "FLOAT64_LE";
-	attenuation: 8.0;
+	attenuation: 3.0;
 };
 
 input "left_in", "right_in" {

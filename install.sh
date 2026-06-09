@@ -1,0 +1,87 @@
+#!/bin/sh
+#
+# install.sh — generate the live config/service files from *.in templates,
+# substituting the host-specific values from config.env (@VAR@ syntax, the same
+# convention omdrc-ctrl uses for its CMake templates).
+#
+# This is the portability layer for the run-from-repo model: the generated files
+# are read directly from this checkout (no copying into /usr/local/etc), so a
+# `git pull` followed by `./install.sh` is the whole update path.  To retarget to
+# another user/box, edit config.env and re-run.
+#
+# Rendering needs no privileges.  Deploying the generated rc.d / systemd units
+# into place (and creating ~/.local/share/mpd, ~/.cache/mpd) is a separate,
+# OS-specific step printed at the end.
+#
+set -eu
+
+REPO_DIR=$(cd "$(dirname "$0")" && pwd)
+
+if [ ! -f "$REPO_DIR/config.env" ]; then
+	echo "error: $REPO_DIR/config.env not found" >&2
+	exit 1
+fi
+# shellcheck disable=SC1091
+. "$REPO_DIR/config.env"
+
+# REPO_DIR is auto-detected above; config.env may override it.
+: "${AUDIO_USER:?set AUDIO_USER in config.env}"
+: "${AUDIO_HOME:?set AUDIO_HOME in config.env}"
+: "${PREFIX:=/usr/local}"
+: "${MUSIC_DIR:?set MUSIC_DIR in config.env}"
+: "${QOBUZ_USER:=}"
+
+render() {
+	tpl=$1
+	out=${tpl%.in}
+	sed -e "s|@AUDIO_USER@|${AUDIO_USER}|g" \
+	    -e "s|@AUDIO_HOME@|${AUDIO_HOME}|g" \
+	    -e "s|@REPO_DIR@|${REPO_DIR}|g" \
+	    -e "s|@PREFIX@|${PREFIX}|g" \
+	    -e "s|@MUSIC_DIR@|${MUSIC_DIR}|g" \
+	    -e "s|@QOBUZ_USER@|${QOBUZ_USER}|g" \
+	    "$tpl" > "$out"
+	# Preserve the executable bit (rc.d scripts) — sed output does not.
+	[ -x "$tpl" ] && chmod +x "$out"
+	echo "  rendered ${out#"$REPO_DIR"/}"
+}
+
+echo "Rendering templates from config.env (AUDIO_USER=${AUDIO_USER}, AUDIO_HOME=${AUDIO_HOME}):"
+# Skip .git and the omdrc-ctrl submodule — it ships its own *.in templates that
+# are rendered by its CMake build (different @VARS@), not by this script.
+find "$REPO_DIR" -name '*.in' -not -path '*/.git/*' -not -path '*/omdrc-ctrl/*' | while read -r tpl; do
+	render "$tpl"
+done
+
+echo
+echo "Done. The generated files are read directly from this checkout."
+echo
+echo "Deploy reminder (needs root; install/link the service glue under etc/ into place):"
+echo "  state dirs : mkdir -p \"${AUDIO_HOME}/.local/share/mpd\" \"${AUDIO_HOME}/.cache/mpd\" \"${AUDIO_HOME}/.cache/upmpdcli\""
+
+if [ "$(uname)" = "FreeBSD" ]; then
+	cat <<EOF
+  FreeBSD:
+    rc.d  : for s in musicpd brutefir_drc drc_usb_audio upmpdcli; do
+              ln -sf "${REPO_DIR}/etc/rc.d/\$s" /usr/local/etc/rc.d/\$s
+            done
+    devd  : ln -sf "${REPO_DIR}/etc/devd/usb-audio-drc.conf" /usr/local/etc/devd/usb-audio-drc.conf
+            service devd restart
+    enable: add to /etc/rc.conf — musicpd_enable=YES upmpdcli_enable=YES \\
+            brutefir_drc_enable=YES drc_usb_audio_enable=YES
+EOF
+else
+	cat <<EOF
+  Linux:
+    modules-load.d : sudo cp "${REPO_DIR}/etc/modules-load.d/snd-aloop.conf" /etc/modules-load.d/
+                     sudo modprobe snd-aloop
+    systemd system : sudo cp "${REPO_DIR}"/etc/systemd/system/*.service /etc/systemd/system/
+                     sudo systemctl daemon-reload   # then: systemctl enable --now brutefir-drc.service
+    systemd --user : mkdir -p ~/.config/systemd/user
+                     cp "${REPO_DIR}"/etc/systemd/user/*.service ~/.config/systemd/user/
+                     systemctl --user daemon-reload  # then: systemctl --user enable --now upmpdcli.service
+                     loginctl enable-linger ${AUDIO_USER}
+    udev (USB DAC) : sudo cp "${REPO_DIR}/99-usb-audio-drc.rules" /etc/udev/rules.d/
+                     sudo udevadm control --reload-rules
+EOF
+fi

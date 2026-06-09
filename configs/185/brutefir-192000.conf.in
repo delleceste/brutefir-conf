@@ -2,14 +2,19 @@ logic: "cli" { port: 3000; };
 
 sampling_rate: 192000;
 
+# Filter files not yet present — place the chosen 185-position filters here:
+#   filters/185/192000/L.raw
+#   filters/185/192000/R.raw
+# Candidates are in filters/185-green/ (FL_EQ1, FL_EQ2, FR_EQ1, FR_EQ2, etc.)
+
 coeff "c-l" {
-	filename: "/home/giacomo/DRC/brutefir-conf/filters/120.blue/192000/L.raw";
+	filename: "@REPO_DIR@/filters/185/192000/L.raw";
 	format: "FLOAT64_LE";
 	attenuation: 3.0;
 };
 
 coeff "c-r" {
-	filename: "/home/giacomo/DRC/brutefir-conf/filters/120.blue/192000/R.raw";
+	filename: "@REPO_DIR@/filters/185/192000/R.raw";
 	format: "FLOAT64_LE";
 	attenuation: 3.0;
 };

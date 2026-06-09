@@ -1,0 +1,16 @@
+# Generated from *.in by install.sh (single source of truth = the .in + config.env)
+/mpd/mpd.conf
+/mpd/musicpd.conf
+/drc.service
+/etc/rc.d/musicpd
+/etc/rc.d/brutefir_drc
+/etc/rc.d/upmpdcli
+/etc/systemd/user/upmpdcli.service
+/etc/systemd/system/brutefir-drc.service
+/etc/systemd/system/drc-usb-audio.service
+# brutefir per-rate configs are generated from configs/**/*.conf.in
+configs/*/*.conf
+/upmpdcli/upmpdcli.conf
+
+# Runtime state written by drc.sh
+/last_arg

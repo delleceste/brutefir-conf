@@ -11,9 +11,9 @@ IS_LINUX=false
 [ "$(uname)" = "Linux" ] && IS_LINUX=true
 
 # ── paths ─────────────────────────────────────────────────────────────────────
-drc_root="/home/giacomo/DRC"
-brutefir_conf_dir="brutefir-conf"
-base_dir="$drc_root/$brutefir_conf_dir"
+# Resolve the directory this script lives in, so the tool is portable: it works
+# from any checkout location and for any user, with no hardcoded $HOME or path.
+base_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_FILE="$base_dir/last_arg"
 
 # Skip sudo when already root (service files run as root); avoids the sudo

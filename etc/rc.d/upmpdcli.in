@@ -1,0 +1,62 @@
+#!/bin/sh
+
+# PROVIDE: upmpdcli
+# REQUIRE: NETWORKING FILESYSTEMS mpd
+# KEYWORD: shutdown
+#
+# Template — generated to upmpdcli by install.sh from config.env.
+#
+# FreeBSD rc.d service script for upmpdcli (UPnP/OpenHome front-end for MPD).
+#
+# Run-from-repo model: the daemon runs as @AUDIO_USER@ and reads its config
+# DIRECTLY from this checkout (@REPO_DIR@/upmpdcli/upmpdcli.conf) — nothing to
+# copy on update.  Override upmpdcli_config in /etc/rc.conf.d/upmpdcli if needed.
+
+PREFIX="@PREFIX@"
+BINDIR="${PREFIX}/bin"
+
+upmpdcli_user="@AUDIO_USER@"
+upmpdcli_homedir="@AUDIO_HOME@"
+
+. /etc/rc.subr
+
+name="upmpdcli"
+rcvar="upmpdcli_enable"
+
+load_rc_config "$name"
+
+: ${upmpdcli_enable:="NO"}
+: ${upmpdcli_user:="@AUDIO_USER@"}
+: ${upmpdcli_homedir:="@AUDIO_HOME@"}
+: ${upmpdcli_flags:=""}
+# Config lives in the repo checkout; pidfile in the user's cache dir
+# (/var/run is not writable by an unprivileged user).
+: ${upmpdcli_config:="@REPO_DIR@/upmpdcli/upmpdcli.conf"}
+: ${upmpdcli_pidfile:="${upmpdcli_homedir}/.cache/upmpdcli/upmpdcli.pid"}
+
+# rc.subr's su -m does not update HOME; export it so upmpdcli finds its cachedir.
+export HOME="${upmpdcli_homedir}"
+
+# Services start with a minimal PATH that omits /usr/local/bin on FreeBSD; the
+# python3 plugin subprocesses upmpdcli launches need it.
+export PATH="${BINDIR}:/usr/bin:/bin"
+
+# daemon(8) backgrounds upmpdcli (run without -D) and manages the PID file.
+command="/usr/sbin/daemon"
+procname="${BINDIR}/upmpdcli"
+pidfile="${upmpdcli_pidfile}"
+
+required_files="${upmpdcli_config}"
+
+command_args="-f -p ${upmpdcli_pidfile} -t ${name} -- ${BINDIR}/upmpdcli -c ${upmpdcli_config} ${upmpdcli_flags}"
+
+start_precmd="upmpdcli_precmd"
+
+upmpdcli_precmd()
+{
+	# Ensure the pidfile/cache dir exists and is owned by the run user
+	# (created as root, before rc.subr drops privileges via su).
+	/usr/bin/install -d -o "${upmpdcli_user}" -m 0755 "${upmpdcli_pidfile%/*}"
+}
+
+run_rc_command "$1"

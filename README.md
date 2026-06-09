@@ -75,6 +75,99 @@ Configuration files, scripts, filters (raw format), ... for brutefir under Linux
 
 Designed and generated from one or more of the DRC-xxx github.com/delleceste folders
 
+# Installing the audio chain
+
+The full playback chain, from the UPnP/OpenHome control front-end down to the
+speakers:
+
+```
+ UPnP / OpenHome control point (phone app, upplay, …)
+        │
+        ▼
+ upmpdcli ──→ libupnpp ──→ libnpupnp      (built from source, this order)
+        │
+        ▼
+ MPD (musicpd)                            (installed from the OS package)
+        │  direct  │ DRC
+        ▼          ▼
+ OKTO DAC      loopback ──→ BruteFIR ──→ OKTO DAC
+                (snd-aloop / virtual_oss)   (delleceste fork)
+        ▲
+        └── open-media-drc (this repo: drc.sh, configs, filters, services)
+            + omdrc-ctrl (web control panel, git submodule)
+```
+
+## Dependencies
+
+Build tools (all from-source components): a C/C++ compiler, **meson + ninja**
+(upmpdcli stack), **cmake** (BruteFIR fork, omdrc-ctrl), **pkg-config**, and git.
+
+| Component | Library / runtime deps | FreeBSD pkg | Arch pacman |
+|---|---|---|---|
+| **libnpupnp** 6.3.0 | libcurl, libmicrohttpd, expat | `curl libmicrohttpd expat2` | `curl libmicrohttpd expat` |
+| **libupnpp** 1.0.4 | libnpupnp, libcurl, expat | (above) | (above) |
+| **upmpdcli** 1.9.17 | libupnpp, libcurl, libmicrohttpd, jsoncpp, libmpdclient | `jsoncpp libmpdclient` | `jsoncpp libmpdclient` |
+| upmpdcli **Qobuz** plugin | python3 + `requests` | `python3 py311-requests` | `python python-requests` |
+| **MPD** | from package; needs **soxr** resampler + ALSA (Linux) / OSS (FreeBSD) output | `musicpd` | `mpd` |
+| **BruteFIR** (fork) | FFTW3 single+double (`-lfftw3 -lfftw3f`), ALSA (Linux); OSS built-in (FreeBSD) | `fftw3 fftw3-float` | `fftw alsa-lib` |
+| FreeBSD loopback | `virtual_oss` (+ `cuse`) — Linux uses the `snd-aloop` kernel module | `virtual_oss` | (kernel module) |
+| **omdrc-ctrl** | python3, flask≥2.3, markdown≥3.5, numpy≥1.21 (optional) | `python3 py311-flask py311-Markdown py311-numpy` | `python python-flask python-markdown python-numpy` |
+
+Common build tools: `meson ninja pkgconf cmake git` (Arch) / `meson ninja
+pkgconf cmake git` (FreeBSD).
+
+> upmpdcli, libupnpp and libnpupnp are also available prebuilt (FreeBSD ports
+> `upmpdcli`, Arch AUR) — building from source is used here to track upstream.
+
+## Build & install order
+
+**1. upmpdcli stack** (bottom-up; each is a standard meson project):
+
+```sh
+for p in libnpupnp-6.3.0 libupnpp-1.0.4 upmpdcli-1.9.17; do
+  cd ~/Downloads/$p
+  meson setup build --prefix=/usr/local
+  ninja -C build
+  sudo ninja -C build install
+done
+sudo ldconfig 2>/dev/null || true   # Linux: refresh the linker cache
+```
+
+**2. MPD** — from the OS package (recommended; same as a stock Arch/FreeBSD
+install). Make sure the **soxr** resampler and the ALSA (Linux) / OSS (FreeBSD)
+outputs are enabled in the package:
+
+```sh
+sudo pkg install musicpd      # FreeBSD
+sudo pacman -S mpd            # Arch
+```
+
+**3. BruteFIR** — built from the fork **`github.com/delleceste/brutefir`**
+(adds FreeBSD OSS fixes — `bfio_oss` fragment-size fix, `brutefir_loopback`
+`-L` loopback fix, passthrough-config default). The classic upstream is
+`torger/brutefir`.
+
+```sh
+git clone https://github.com/delleceste/brutefir ~/Downloads/brutefir
+cd ~/Downloads/brutefir
+cmake -B build && cmake --build build         # or: make -f Makefile.dist
+sudo cmake --install build                    # installs modules to /usr/local/lib/brutefir
+```
+
+**4. open-media-drc (this repo) + omdrc-ctrl**:
+
+```sh
+git clone --recursive https://github.com/delleceste/open-media-drc ~/DRC/open-media-drc
+cd ~/DRC/open-media-drc
+$EDITOR config.env        # set AUDIO_USER, AUDIO_HOME, PREFIX, MUSIC_DIR, QOBUZ_USER
+./install.sh              # renders every *.in from config.env; prints the deploy steps
+```
+
+`install.sh` generates the live configs/service files (MPD, upmpdcli, BruteFIR,
+rc.d / systemd units) from the templates and prints the OS-specific commands to
+link them into place. omdrc-ctrl builds with cmake (`cmake -B build && cmake
+--build build`) — see `omdrc-ctrl/README.md`.
+
 # configs/ directory
 
 Per-geometry, per-rate brutefir configuration files live under `configs/<geometry>/`.
@@ -306,14 +399,16 @@ rate/variant selection: `drc.sh 192000`, `drc.sh 192000 +2dB`, `drc.sh resamp`, 
 
 ## FreeBSD rc.d scripts
 
-FreeBSD equivalents are provided under `etc/rc.d/FreeBSD/`, with an optional `devd`
-rule under `etc/devd/FreeBSD/`.
+FreeBSD equivalents are provided under `etc/rc.d/`, with an optional `devd`
+rule under `etc/devd/`.  (The directory names — `rc.d`/`devd` vs the Linux
+`systemd`/`modules-load.d` — already imply the OS, so there is no extra
+`FreeBSD/` level.)
 
 | File | Installed to | Purpose |
 |---|---|---|
-| `etc/rc.d/FreeBSD/brutefir_drc` | `/usr/local/etc/rc.d/` | Manages the BruteFIR process |
-| `etc/rc.d/FreeBSD/drc_usb_audio` | `/usr/local/etc/rc.d/` | Starts/stops BruteFIR and switches MPD outputs |
-| `etc/devd/FreeBSD/usb-audio-drc.conf` | `/usr/local/etc/devd/` | Triggers routing on USB audio attach/detach |
+| `etc/rc.d/brutefir_drc` | `/usr/local/etc/rc.d/` | Manages the BruteFIR process |
+| `etc/rc.d/drc_usb_audio` | `/usr/local/etc/rc.d/` | Starts/stops BruteFIR and switches MPD outputs |
+| `etc/devd/usb-audio-drc.conf` | `/usr/local/etc/devd/` | Triggers routing on USB audio attach/detach |
 
 Install on FreeBSD with:
 
@@ -325,7 +420,7 @@ The `devd` rule calls `service ... onestart/onestop`, so no `rc.conf` enable fla
 are required for hotplug operation. Use `/etc/rc.conf` for local overrides:
 
 ```sh
-brutefir_drc_drcsh="/home/giacomo/DRC/brutefir-conf/drc.sh"
+brutefir_drc_drcsh="/home/giacomo/DRC/open-media-drc/drc.sh"
 drc_usb_audio_start_delay="1"
 ```
 

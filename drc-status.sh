@@ -3,9 +3,8 @@
 # Exits 1 and prints 'inconsistent' if multiple different configs are running.
 
 GEOMETRY="120.blue"   # speaker geometry / filter set to use — keep in sync with drc.sh
-drc_root="/home/giacomo/DRC"
-brutefir_conf_dir="brutefir-conf"
-base_dir="$drc_root/$brutefir_conf_dir"
+# Resolve this script's directory so the tool is portable (no hardcoded $HOME).
+base_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_FILE="$base_dir/last_arg"
 
 if [ "${1:-}" = "--geometry" ]; then

@@ -1,18 +1,18 @@
 logic: "cli" { port: 3000; };
 
-sampling_rate: 44100;
+sampling_rate: 88200;
 
-# Filter files not yet present — run scripts/REW2raw.sh to generate them at 44100 Hz
-# and place the results in filters/120.blue/44100/L.raw and R.raw
+# Filter files not yet present — run scripts/REW2raw.sh to generate them at 88200 Hz
+# and place the results in filters/120.blue/88200/L.raw and R.raw
 
 coeff "c-l" {
-	filename: "/home/giacomo/DRC/brutefir-conf/filters/120.blue/44100/L.raw";
+	filename: "@REPO_DIR@/filters/120.blue/88200/L.raw";
 	format: "FLOAT64_LE";
 	attenuation: 3.0;
 };
 
 coeff "c-r" {
-	filename: "/home/giacomo/DRC/brutefir-conf/filters/120.blue/44100/R.raw";
+	filename: "@REPO_DIR@/filters/120.blue/88200/R.raw";
 	format: "FLOAT64_LE";
 	attenuation: 3.0;
 };
