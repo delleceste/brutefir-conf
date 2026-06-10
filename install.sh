@@ -65,10 +65,15 @@ if [ "$(uname)" = "FreeBSD" ]; then
     rc.d  : for s in musicpd brutefir_drc drc_usb_audio upmpdcli; do
               ln -sf "${REPO_DIR}/etc/rc.d/\$s" /usr/local/etc/rc.d/\$s
             done
+            # All four are symlinked. brutefir_drc is the worker invoked by
+            # drc_usb_audio (service brutefir_drc onestart) — it needs the
+            # symlink to resolve, but is NOT enabled below.
     devd  : ln -sf "${REPO_DIR}/etc/devd/usb-audio-drc.conf" /usr/local/etc/devd/usb-audio-drc.conf
             service devd restart
     enable: add to /etc/rc.conf — musicpd_enable=YES upmpdcli_enable=YES \\
-            brutefir_drc_enable=YES drc_usb_audio_enable=YES
+            drc_usb_audio_enable=YES
+            # Enable ONLY drc_usb_audio for DRC: it probes for the DAC at boot
+            # and is driven by devd on hotplug. Do NOT enable brutefir_drc.
 EOF
 else
 	cat <<EOF

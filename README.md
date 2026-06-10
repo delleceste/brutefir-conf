@@ -424,13 +424,21 @@ brutefir_drc_drcsh="/home/giacomo/DRC/open-media-drc/drc.sh"
 drc_usb_audio_start_delay="1"
 ```
 
-If you want either service to start at boot independently of USB hotplug, also set
-the corresponding enable flag:
+Enable **only** `drc_usb_audio` at boot:
 
 ```sh
-brutefir_drc_enable="YES"
 drc_usb_audio_enable="YES"
 ```
+
+`drc_usb_audio` is the single entry point. At boot it **probes for the DAC**
+(`/dev/dsp0`): if the DAC is on it brings DRC up once; if not, it does nothing and
+lets `devd` start DRC when the DAC is switched on later. Do **not** also enable
+`brutefir_drc` — it is the worker invoked by `drc_usb_audio` (it runs
+`drc.sh restore`) and must stay symlinked but unenabled, otherwise boot starts the
+chain twice and the two runs race. `drc.sh` itself now serializes mutating runs
+under a lock (`lockf` on FreeBSD, `flock` on Linux), so overlapping triggers are
+safe, and a failed BruteFIR start rolls back to direct DAC output instead of
+leaving `virtual_oss` orphaned.
 
 Manual control:
 
@@ -444,6 +452,151 @@ service brutefir_drc onestop    # stop BruteFIR + virtual_oss + switch MPD
 The `devd` attach rule matches USB audio interface class `0x01`. The detach rule
 stops DRC on USB device removal; add DAC-specific `vendor`/`product` matches if the
 host has other USB devices whose removal should not stop DRC.
+
+# Startup, shutdown, and the DAC presence model
+
+DRC only means anything when the DAC is connected: BruteFIR convolves into the DAC,
+and `virtual_oss` (FreeBSD) / the ALSA loopback (Linux) exists only to feed it. The
+whole startup design follows from one rule:
+
+> **The DAC's presence is the single condition that drives DRC.**
+> DAC present → DRC up, replaying the last saved rate/variant.
+> DAC absent → DRC down, MPD playing straight to the DAC's direct output.
+
+Everything below is how that rule is made to hold whether the DAC is already powered
+at boot or switched on hours later.
+
+## Two ways the DAC appears — and why both need handling
+
+A USB DAC can become available in two ways, and both have to be caught:
+
+1. **Already on at boot.** The kernel enumerates the DAC during device probe, well
+   before the service manager runs. By the time rc.d starts, the OSS node
+   (`/dev/dsp0`) already exists.
+2. **Switched on later.** The DAC is powered up (or plugged in) on a running system.
+   The kernel attaches it and emits a hotplug event — `devd` on FreeBSD, `udev` on
+   Linux.
+
+Hotplug events only cover case 2. On FreeBSD, `devd` does **not** reliably receive an
+attach that happened before it opened `/dev/devctl`, so a DAC that was already on at
+boot would never produce an event `devd` can act on. Relying on the hotplug edge
+alone would miss the most common case — a box that boots with the DAC on.
+
+So each case uses the kind of trigger that fits it:
+
+- **Boot:** a one-shot **presence probe** — a *level* check that asks "is the DAC here
+  right now?" and acts if so.
+- **Hotplug:** the **attach event** — an *edge* trigger that fires when the DAC
+  appears later.
+
+Both funnel into the same start path, so there is exactly one way DRC comes up.
+
+## The single entry point
+
+On FreeBSD that entry point is the `drc_usb_audio` service, the only DRC service
+enabled at boot:
+
+```sh
+# /etc/rc.conf
+drc_usb_audio_enable="YES"
+```
+
+Its `start` does three things, in order:
+
+1. **Skip if already running.** If `/var/run/drc_usb_audio.active` exists, DRC is
+   already up — do nothing. The marker lives on tmpfs, so it is correctly absent on a
+   fresh boot and present once DRC is up; that makes repeated triggers idempotent.
+2. **Settle, then probe.** Sleep `drc_usb_audio_start_delay` (default 1 s) so a
+   freshly-attached DAC's OSS node has time to appear, then check for `/dev/dsp0`.
+   **If the node is absent, do nothing** and return — `devd` will start DRC when the
+   DAC shows up. This is the level check that covers the boot case and harmlessly
+   no-ops when the DAC is off.
+3. **Bring DRC up.** Call the worker `brutefir_drc onestart`, which runs
+   `drc.sh restore`, then write the `.active` marker.
+
+`brutefir_drc` is just that worker — it runs `drc.sh restore` / `drc.sh off`. It is
+**symlinked but not enabled**: `drc_usb_audio` calls it on demand, so it has to
+resolve as a service, but it must not start on its own at boot.
+
+`devd` drives the same two verbs on hotplug:
+
+```
+DAC attached (USB intclass 0x01)  → service drc_usb_audio onestart
+USB device detached               → service drc_usb_audio onestop
+```
+
+## What `drc.sh restore` does
+
+`restore` replays the **desired** state recorded in `last_arg` (e.g. `resamp`,
+`192000`, `192000 +2dB`). It re-execs `drc.sh` with those arguments, and that run
+rebuilds the chain:
+
+1. Stop any running BruteFIR and wait for it to release the DAC.
+2. Disable all MPD outputs so the DAC and the loopback are free.
+3. (FreeBSD) Restart `virtual_oss` at the target rate and wait for `/dev/dsp.loop`.
+4. Prime the DAC if the rate changed (see below).
+5. Start BruteFIR and **verify it stays up** — it forks before opening the audio
+   devices and can exit a moment later if it cannot open them.
+6. Enable the matching MPD output (`DRC-native` or `DRC-resamp`).
+7. Record the state.
+
+`last_arg` is the *desired* state, not the achieved one. A failed start never
+rewrites it, so the next trigger retries the same configuration rather than silently
+giving up.
+
+## The sample-rate priming quirk
+
+The OKTO DAC has a hardware quirk: the **first** stream opened at a new sample rate
+routes silence. It reports "play" and provides USB feedback, but no audio comes out;
+a *second* open at the same rate fixes it.
+
+`drc.sh` automates this. When it detects a rate change (target rate ≠ previous rate)
+it **primes**: it opens BruteFIR once at the new rate, tears it back down, then starts
+it for real. The real start is then the "second" open the DAC needs to actually
+output. Within an unchanged rate there is no priming.
+
+## One run at a time
+
+Boot probe, `devd` attach, a manual `drc.sh`, and a detach can all fire close
+together. Each mutating run stops BruteFIR and rebuilds `virtual_oss`; if two overlap,
+one run's teardown can kill the other's freshly-started BruteFIR or pull
+`/dev/dsp.loop` out from under it.
+
+To prevent that, `drc.sh` **serializes** itself: every mutating run re-execs under a
+lock (`lockf` on FreeBSD, `flock` on Linux) so only one proceeds at a time and the
+others wait. Read-only paths (`drc.sh status`, and `restore` before it re-execs) run
+lock-free. If no locking tool is present it proceeds unlocked rather than failing.
+
+## Always a defined state
+
+If BruteFIR cannot be brought up — most often because the DAC is powered but not yet
+ready to output — `drc.sh` does not exit half-built. It **rolls back**: it stops
+`virtual_oss` and re-enables the DAC's direct output, leaving a clean, audible system
+equivalent to `off`. `last_arg` is left untouched, so the next attach (or a manual
+`restore`) retries the intended configuration.
+
+This is what guarantees only two resting states exist: **DRC fully up** with BruteFIR
+processing, or **direct output** with the DAC playing straight through. There is no
+resting state where `virtual_oss` runs without BruteFIR.
+
+## Shutdown
+
+When the DAC is unplugged or powered off, `devd` detach (or a service stop) runs
+`drc.sh off`:
+
+1. Stop BruteFIR and wait for it to release `/dev/dsp0`.
+2. (FreeBSD) Stop `virtual_oss`.
+3. `mpc enable only OKTO-DAC` — switch MPD back to the direct output.
+
+The chain comes down in the reverse order it went up, freeing the DAC before the
+direct output reopens it (the DAC is single-open).
+
+## Verifying the result
+
+`drc.sh status` reports the **actual, observed** state — DRC config, `virtual_oss` /
+ALSA rate, BruteFIR, and the MPD output and rate — derived from what is *running*, not
+from `last_arg`. After a boot or a plug event it is the quickest way to confirm DRC
+came up at the expected rate and that the MPD rate matches the BruteFIR rate.
 
 # scripts/REW2raw.sh
 

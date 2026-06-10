@@ -5,7 +5,7 @@ set -euo pipefail
 GEOMETRY="120.blue"   # speaker geometry / filter set to use
 
 VIRTUAL_OSS_PID=/tmp/virtual_oss.pid
-VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp.play -a 0 -l dsp.loop"
+VIRTUAL_OSS_ARGS="-i 8 -C 2 -c 2 -b 32 -s 200ms -f /dev/null -a 0 -d dsp1 -a 0 -l dsp.loop"
 
 IS_LINUX=false
 [ "$(uname)" = "Linux" ] && IS_LINUX=true
@@ -256,6 +256,25 @@ if [ $# -eq 1 ] && [ "$1" = "status" ]; then
   exit 0
 fi
 
+# ── serialize mutating runs ──────────────────────────────────────────────────
+# Boot presence-probe, devd ATTACH/DETACH and interactive runs can otherwise
+# overlap: one run's stop_brutefir kills another's freshly-started brutefir and
+# its virtual_oss teardown yanks /dev/dsp.loop out from under it, leaving
+# virtual_oss orphaned with brutefir down (the "off + virtual_oss running"
+# state).  Re-exec under a lock so only one mutating run proceeds at a time.
+# Portable: lockf(1) on FreeBSD, flock(1) on Linux; if neither is present we
+# proceed unlocked rather than fail.  restore/status above run lock-free —
+# restore re-execs into a rate/off run, which lands here and takes the lock.
+if [ -z "${DRC_LOCKED:-}" ]; then
+  export DRC_LOCKED=1
+  LOCK_FILE="${TMPDIR:-/tmp}/drc.lock"
+  if command -v lockf >/dev/null 2>&1; then
+    exec lockf -s -t 30 "$LOCK_FILE" "$0" "$@"
+  elif command -v flock >/dev/null 2>&1; then
+    exec flock -w 30 "$LOCK_FILE" "$0" "$@"
+  fi
+fi
+
 # ── argument parsing ──────────────────────────────────────────────────────────
 if [ $# -eq 1 ] && [ "$1" = "off" ]; then
   mode="off"
@@ -374,7 +393,7 @@ fi
 
 # ── free the audio devices before rebuilding the chain ───────────────────────
 # brutefir opens /dev/dsp0 (the single-open DAC); MPD's direct output holds it
-# while playing, and the DRC outputs hold /dev/dsp.play.  Disable all MPD
+# while playing, and the DRC outputs hold /dev/dsp1.  Disable all MPD
 # outputs now so brutefir is guaranteed a free DAC and virtual_oss a free
 # loopback — then re-enable the right one once the chain is confirmed up.
 # Disabling first also forces the later "enable only" to genuinely reopen the
@@ -383,7 +402,7 @@ mpc disable "OKTO-DAC"   2>/dev/null || true
 mpc disable "DRC-native" 2>/dev/null || true
 mpc disable "DRC-resamp" 2>/dev/null || true
 # "mpc disable" returns before MPD's player thread has actually closed the
-# device; give it a moment so MPD releases /dev/dsp.play (and the DAC) before
+# device; give it a moment so MPD releases /dev/dsp1 (and the DAC) before
 # we tear down virtual_oss underneath it.  Yanking the backend out from under
 # an open MPD output is what produced "exception: Failed to open audio output"
 # and forced a second run.
@@ -426,6 +445,19 @@ fi
 # ── start brutefir (verified, with retry) ────────────────────────────────────
 if ! start_brutefir; then
   echo "ERROR: brutefir failed to start after 3 attempts (see /tmp/brutefir.out)" >&2
+  # Roll back to a defined state instead of leaving the chain half-built.  At
+  # this point all mpc outputs are disabled and virtual_oss may be running; if
+  # we just exit, the box is silent with virtual_oss orphaned (the inconsistent
+  # "off + virtual_oss running" state).  Tear the chain down and re-enable the
+  # direct DAC so there is always a working output.
+  echo "rolling back to direct DAC output (off)" >&2
+  if ! $IS_LINUX; then
+    stop_virtual_oss
+  fi
+  mpc enable only "OKTO-DAC" 2>/dev/null || true
+  # last_arg is left unchanged on purpose: it records the *desired* state, so the
+  # next trigger (devd ATTACH / drc.sh restore) retries this config rather than
+  # silently staying off after a transient failure.
   exit 1
 fi
 
