@@ -1,6 +1,7 @@
 [Unit]
 Description=BruteFIR DRC convolution engine
-After=sound.target
+After=sound.target mpd.service
+Wants=mpd.service
 
 # Template — generated to brutefir-drc.service by install.sh from config.env.
 # Runs as the AUDIO USER (not root): brutefir must be owned by that user so an
@@ -19,3 +20,6 @@ LimitRTPRIO=99
 LimitMEMLOCK=infinity
 ExecStart=@REPO_DIR@/drc.sh restore
 ExecStop=@REPO_DIR@/drc.sh off
+
+[Install]
+WantedBy=multi-user.target
