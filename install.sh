@@ -83,9 +83,10 @@ else
     modules-load.d : sudo cp "${REPO_DIR}/etc/modules-load.d/snd-aloop.conf" /etc/modules-load.d/
                      sudo modprobe snd-aloop
     systemd system : sudo cp "${REPO_DIR}"/etc/systemd/system/*.service /etc/systemd/system/
+                     sudo mkdir -p /etc/systemd/system/mpd.service.d
+                     sudo cp "${REPO_DIR}"/etc/systemd/system/mpd.service.d/omdrc.conf /etc/systemd/system/mpd.service.d/
                      sudo systemctl disable --now mpd.socket  # not used: we bypass socket activation
-                     sudo systemctl daemon-reload
-                     sudo systemctl enable --now mpd.service
+                     sudo systemctl daemon-reload && sudo systemctl restart mpd.service
     systemd --user : mkdir -p ~/.config/systemd/user
                      cp "${REPO_DIR}"/etc/systemd/user/*.service ~/.config/systemd/user/
                      systemctl --user daemon-reload
