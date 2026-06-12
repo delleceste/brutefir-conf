@@ -85,7 +85,7 @@ else
     systemd system : sudo cp "${REPO_DIR}"/etc/systemd/system/*.service /etc/systemd/system/
                      sudo systemctl disable --now mpd.socket  # not used: we bypass socket activation
                      sudo systemctl daemon-reload
-                     sudo systemctl enable --now mpd.service brutefir-drc.service
+                     sudo systemctl enable --now mpd.service
     systemd --user : mkdir -p ~/.config/systemd/user
                      cp "${REPO_DIR}"/etc/systemd/user/*.service ~/.config/systemd/user/
                      systemctl --user daemon-reload
