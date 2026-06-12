@@ -142,6 +142,26 @@ sudo pkg install musicpd      # FreeBSD
 sudo pacman -S mpd            # Arch
 ```
 
+> **⚠️ Linux (Arch) — MPD `User=` drop-in caveat**
+>
+> The Arch `mpd` package ships a systemd drop-in at
+> `/usr/lib/systemd/system/mpd.service.d/00-arch.conf` that sets `User=mpd`.
+> Systemd drop-ins always apply **on top of** the main unit file — so a full
+> unit override placed at `/etc/systemd/system/mpd.service` cannot override
+> that `User=` setting; it will silently lose to the package drop-in.
+>
+> This repo therefore ships a **counter-drop-in** instead of a full unit
+> override: `etc/systemd/system/mpd.service.d/open-media-drc.conf` (generated
+> by `install.sh` from `config.env`).  It sets `User=@AUDIO_USER@` and
+> the repo config path.  A drop-in in `/etc/systemd/system/` takes precedence
+> over one in `/usr/lib/systemd/system/`, so this correctly wins.
+>
+> The deploy commands printed by `install.sh` handle this — they copy the
+> drop-in to `/etc/systemd/system/mpd.service.d/` rather than a full unit
+> file.  **Do not** copy or create a full
+> `/etc/systemd/system/mpd.service` — it will not help and will only add
+> confusion.
+
 **3. BruteFIR** — built from the fork **`github.com/delleceste/brutefir`**
 (adds FreeBSD OSS fixes — `bfio_oss` fragment-size fix, `brutefir_loopback`
 `-L` loopback fix, passthrough-config default). The classic upstream is
@@ -323,16 +343,13 @@ USB DAC unplugged
 events from a single plug-in from starting duplicate brutefir instances. The `remove` rule
 resets the service to inactive so the next plug-in works correctly.
 
-`brutefir-drc.service` provides the same `drc.sh restore` / `drc.sh off` lifecycle for
-manual control and optional boot-time startup, without the USB settle delay.
-
 ## Files
 
 | File | Installed to | Purpose |
 |---|---|---|
-| `99-usb-audio-drc.rules` | `/etc/udev/rules.d/` | udev rule: triggers the service on DAC plug-in |
-| `etc/systemd/system/brutefir-drc.service` | `/etc/systemd/system/` | Manages the brutefir process |
-| `etc/systemd/system/drc-usb-audio.service` | `/etc/systemd/system/` | Switches MPD output; declares dependency on brutefir-drc |
+| `99-usb-audio-drc.rules` | `/etc/udev/rules.d/` | udev rule: triggers the service on DAC plug-in/unplug |
+| `etc/systemd/system/mpd.service.d/open-media-drc.conf` | `/etc/systemd/system/mpd.service.d/` | MPD drop-in: run as AUDIO_USER, read config from checkout |
+| `etc/systemd/system/drc-usb-audio.service` | `/etc/systemd/system/` | Starts/stops DRC on USB DAC attach/detach |
 
 ## The udev rule (`99-usb-audio-drc.rules`)
 
@@ -345,20 +362,17 @@ ACTION=="add", SUBSYSTEM=="sound", KERNEL=="controlC*", SUBSYSTEMS=="usb",
 - `TAG+="systemd"` hands the event to systemd.
 - `SYSTEMD_WANTS` tells systemd to start `drc-usb-audio.service` if it is not already active.
 
-## Why two service units
+## The service unit
 
-Both services use `Type=oneshot` with `RemainAfterExit=yes`. They both call `drc.sh restore`
-on start and `drc.sh off` on stop; the only difference is that `drc-usb-audio.service` adds
-`ExecStartPre=/bin/sleep 1` to wait for the USB DAC to settle before starting brutefir.
+`drc-usb-audio.service` uses `Type=oneshot` with `RemainAfterExit=yes`. It calls
+`drc.sh restore` on start (with a 1-second `ExecStartPre` settle delay for USB) and
+`drc.sh off` on stop. `RemainAfterExit=yes` keeps the service "active" after ExecStart
+completes so repeated udev events (one USB device generates several `controlC*` events)
+are ignored and do not launch duplicate brutefir instances.
 
-**`brutefir-drc.service`** — for manual control and optional boot-time startup. No delay.
-Can be enabled in `/etc/systemd/system/` to start DRC automatically at boot.
-
-**`drc-usb-audio.service`** — triggered by udev on USB DAC plug-in. The 1-second settle
-delay avoids starting brutefir before the DAC's OSS device node is available.
-`RemainAfterExit=yes` keeps the service "active" after ExecStart completes so repeated
-udev events (one USB device generates several `controlC*` events) are ignored and do not
-launch additional brutefir instances.
+Because udev synthesizes ADD events for already-present devices at boot, this single
+service covers both the boot case (DAC already connected) and the hotplug case (DAC
+switched on later) — no separate boot service is needed.
 
 ## Installation
 
@@ -375,22 +389,16 @@ make install-udev     # copy udev rule and reload udev only
 ## Manual control
 
 ```bash
-# Stop DRC completely (stops brutefir + virtual_oss + switches MPD back to output 1)
+# Stop DRC (stops brutefir, switches MPD back to direct output)
 sudo systemctl stop drc-usb-audio.service
 
 # Start DRC (restores last saved rate/variant, or defaults to 192000)
 sudo systemctl start drc-usb-audio.service
 
-# Manual DRC control without USB trigger
-sudo systemctl start brutefir-drc.service
-sudo systemctl stop  brutefir-drc.service
-
 # Check status
-systemctl status brutefir-drc.service
 systemctl status drc-usb-audio.service
 
 # Follow logs
-journalctl -fu brutefir-drc.service
 journalctl -fu drc-usb-audio.service
 ```
 
