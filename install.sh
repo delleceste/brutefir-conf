@@ -86,12 +86,9 @@ else
                      sudo mkdir -p /etc/systemd/system/mpd.service.d
                      sudo cp "${REPO_DIR}"/etc/systemd/system/mpd.service.d/open-media-drc.conf /etc/systemd/system/mpd.service.d/
                      sudo systemctl disable --now mpd.socket  # not used: we bypass socket activation
-                     sudo systemctl daemon-reload && sudo systemctl restart mpd.service
-    systemd --user : mkdir -p ~/.config/systemd/user
-                     cp "${REPO_DIR}"/etc/systemd/user/*.service ~/.config/systemd/user/
-                     systemctl --user daemon-reload
-                     systemctl --user enable --now upmpdcli.service
-                     loginctl enable-linger ${AUDIO_USER}
+                     sudo systemctl daemon-reload
+                     sudo systemctl enable --now upmpdcli.service
+                     sudo systemctl restart mpd.service
     udev (USB DAC) : sudo cp "${REPO_DIR}/99-usb-audio-drc.rules" /etc/udev/rules.d/
                      sudo udevadm control --reload-rules
 EOF
