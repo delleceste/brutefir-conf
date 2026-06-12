@@ -80,16 +80,18 @@ EOF
 else
 	cat <<EOF
   Linux:
-    modules-load.d : sudo cp "${REPO_DIR}/etc/modules-load.d/snd-aloop.conf" /etc/modules-load.d/
+    modules-load.d : sudo ln -sf "${REPO_DIR}/etc/modules-load.d/snd-aloop.conf" /etc/modules-load.d/
                      sudo modprobe snd-aloop
-    systemd system : sudo cp "${REPO_DIR}"/etc/systemd/system/*.service /etc/systemd/system/
+    systemd system : for s in drc-usb-audio upmpdcli; do
+                       sudo ln -sf "${REPO_DIR}/etc/systemd/system/\$s.service" /etc/systemd/system/
+                     done
                      sudo mkdir -p /etc/systemd/system/mpd.service.d
-                     sudo cp "${REPO_DIR}"/etc/systemd/system/mpd.service.d/open-media-drc.conf /etc/systemd/system/mpd.service.d/
+                     sudo ln -sf "${REPO_DIR}/etc/systemd/system/mpd.service.d/open-media-drc.conf" /etc/systemd/system/mpd.service.d/
                      sudo systemctl disable --now mpd.socket  # not used: we bypass socket activation
                      sudo systemctl daemon-reload
                      sudo systemctl enable --now upmpdcli.service
                      sudo systemctl restart mpd.service
-    udev (USB DAC) : sudo cp "${REPO_DIR}/99-usb-audio-drc.rules" /etc/udev/rules.d/
+    udev (USB DAC) : sudo ln -sf "${REPO_DIR}/99-usb-audio-drc.rules" /etc/udev/rules.d/
                      sudo udevadm control --reload-rules
 EOF
 fi
